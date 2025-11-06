@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.6.0/dist/aframe-master.min.js"></script>
+<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+
+<style>
+  .arjs-loader {
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .arjs-loader div {
+    text-align: center;
+    font-size: 1.25em;
+    color: white;
+  }
+</style>
+
+<body style="margin : 0px; overflow: hidden;">
+  <!-- minimal loader shown until image descriptors are loaded -->
+  <div class="arjs-loader">
+    <div>Loading, please wait...</div>
+  </div>
+  <a-scene
+    vr-mode-ui="enabled: false;"
+    renderer="logarithmicDepthBuffer: true; precision: medium;"
+    embedded
+    arjs="trackingMethod: best; sourceType: webcam;debugUIEnabled: false;"
+  >
+    <!-- we use cors proxy to avoid cross-origin problems ATTENTION! you need to set up your server -->
+    <a-nft
+      type="nft"
+      url="https://raw.githack.com/AR-js-org/AR.js/master/aframe/examples/image-tracking/nft/trex/trex-image/trex"
+      smooth="true"
+      smoothCount="10"
+      smoothTolerance=".01"
+      smoothThreshold="5"
+    >
+      <a-image
+        src="https://clipartix.com/wp-content/uploads/2016/05/Stick-figure-stick-people-clip-art-free-clipart-images-2-clipartcow.png"
+        scale="10 10 10"
+        position="150 300 -100"
+        rotation="-90 0 0"
+      >
+      </a-image>
+    </a-nft>
+    <a-nft
+      type="nft"
+      url="https://raw.githack.com/KrazyKoi/artest.github.io/refs/heads/main/gurttesting/Marker1"
+      id="mark1"
+      smooth="true"
+      smoothCount="10"
+      smoothTolerance=".01"
+      smoothThreshold="5"
+    >
+    </a-nft>
+    <a-nft
+      type="nft"
+      url="https://raw.githack.com/KrazyKoi/artest.github.io/refs/heads/main/gurttesting/gurttesting"
+      id="gurt"
+      smooth="true"
+      smoothCount="10"
+      smoothTolerance=".01"
+      smoothThreshold="5"
+    >
+    </a-nft>
+    <a-entity camera></a-entity>
+  </a-scene>
+  <script>
+    document.querySelector('#mark1').addEventListener('markerFound', () => {
+    window.location.href = 'https://alexs-mobs-unofficial.fandom.com/wiki/Ambergris';});
+  </script>
+  <script>
+    document.querySelector('#gurt').addEventListener('markerFound', () => {
+    window.location.href = 'https://origins.readthedocs.io/en/latest/types/entity_condition_types/status_effect/';});
+  </script>
+
+</body>
