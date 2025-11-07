@@ -55,5 +55,28 @@ function startLoop() {
             rafId = requestAnimationFrame(step);
             return;
         }
+
+        hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+        
+        const frame = hiddenCtx.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height);
+        const gray = rgbaToGray(frame.data, frame.width, frame.height);
+
+        //const detections = detectMarkers(gray, frame.width, frame.height);
+
+        //overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+        //drawDetections(overlayCtx, detections);
+
+        rafId = requestAnimationFrame(step);
     }
+    rafId = requestAnimationFrame(step);
+}
+
+function rgbaToGray(rgba, width, height) {
+    const len = width * height;
+    const out = new Uint8Array(len);
+    let ri = 0;
+    for (let i = 0; i < len; i++, ri += 4) {
+        out[i] = (rgba[ri] * 0.299 + rgba[ri+1] * 0.587 + rgba[ri+2] * 0.114) | 0;
+    }
+    return out;
 }
