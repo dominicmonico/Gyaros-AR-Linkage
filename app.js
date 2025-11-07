@@ -11,6 +11,46 @@ let hiddenCtx = null;
 let overlayCtx = null;
 let processing = false;
 
+let AT = {
+  module: null,
+  detectorPtr: 0,
+  imgPtr: 0,
+  imgSize: 0,
+  initialized: false
+};
+
+async function initAprilTag() {
+    if(typeof ApriltagModule === 'function'){
+        AT.module = await ApriltagModule();
+    } 
+    else if (window.Module){
+        AT.module = window.Module;
+        if (AT.module.onRuntimeInitialized) {
+            await new Promise(resolve => {
+                const prev = AT.module.onRuntimeInitialized;
+                AT.module.onRuntimeInitialized = () => { prev && prev(); resolve(); };
+            });
+        }
+    }
+    else {
+        throw new Error('AprilTag loader not found. Ensure apriltag.js is loaded.');
+    }
+
+    const cwrap = AT.module.cwrap;
+
+    // Create tag family and detector (common C API names)
+    const tag16h5_create = cwrap('tag16h5_create', 'number', []);
+    const apriltag_detector_create = cwrap('apriltag_detector_create', 'number', []);
+    const apriltag_detector_add_family_bits = cwrap('apriltag_detector_add_family_bits', null, ['number','number']);
+
+    const family = tag16h5_create();
+    AT.detectorPtr = apriltag_detector_create();
+    apriltag_detector_add_family_bits(AT.detectorPtr, family);
+
+    AT.initialized = true;
+    console.log('AprilTag initialized (tag16h5)');
+}
+
 async function startCamera() {
   try {
     const constraints = { video: { facingMode: 'environment' }, audio: false };
@@ -49,6 +89,8 @@ async function startCamera() {
     overlay.style.top = '0';
     overlay.style.pointerEvents = 'none';
     overlay.style.background = 'transparent';
+
+    await(initAprilTag());
 
     startLoop();
     startButton.disabled = true;
@@ -92,9 +134,9 @@ function startLoop() {
         const frame = hiddenCtx.getImageData(0, 0, cw, ch);
         const gray = rgbaToGray(frame.data, frame.width, frame.height);
 
-        //const detections = detectMarkers(gray, frame.width, frame.height);
+        const detections = detectAprilTags(gray, w, h)
 
-        //overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
         //drawDetections(overlayCtx, detections);
 
         rafId = requestAnimationFrame(step);
@@ -110,6 +152,10 @@ function rgbaToGray(rgba, width, height) {
         out[i] = Math.round(rgba[ri] * 0.299 + rgba[ri+1] * 0.587 + rgba[ri+2] * 0.114);
     }
     return out;
+}
+
+function detectAprilTags(gray, width, height) {
+    
 }
 
 startButton.addEventListener('click', startCamera);
