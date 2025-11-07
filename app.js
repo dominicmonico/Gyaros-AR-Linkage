@@ -13,17 +13,23 @@ let processing = false;
 
 async function startCamera() {
     try {
-        const contraints = { video: { facingmode : 'environment' }, audio: false };
-        stream = await navigator.mediaDevices.getUserMedia(contraints);
+        const constraints = { video: { facingMode : 'environment' }, audio: false };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
         await video.play();
 
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+
         hiddenCanvas = document.createElement('canvas');
-        hiddenCanvas.width = video.videoWidth;
-        hiddenCanvas.height = video.videoHeight;
+        hiddenCanvas.width = vw || 640;
+        hiddenCanvas.height = vh || 480;
+        
         hiddenCtx = hiddenCanvas.getContext('2d');
-        overlay.width = video.videoWidth;
-        overlay.height = video.videoHeight;
+        if (overlay.width !== vw || overlay.height !== vh) {
+            overlay.width = vw;
+            overlay.height = vh;
+        }
         overlayCtx = overlay.getContext('2d');
 
         startLoop();
@@ -44,7 +50,9 @@ function stopCamera() {
         cancelAnimationFrame(rafId);
         rafId = null;
     }
-    startButton.disabled = false;
+    if (overlayCtx) {
+        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+    }
     stopButton.disabled = true;
     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
 }
@@ -56,9 +64,12 @@ function startLoop() {
             return;
         }
 
+        const cw = hiddenCanvas.width;
+        const ch = hiddenCanvas.height;
+
         hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-        
-        const frame = hiddenCtx.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height);
+
+        const frame = hiddenCtx.getImageData(0, 0, cw, ch);
         const gray = rgbaToGray(frame.data, frame.width, frame.height);
 
         //const detections = detectMarkers(gray, frame.width, frame.height);
@@ -76,7 +87,7 @@ function rgbaToGray(rgba, width, height) {
     const out = new Uint8Array(len);
     let ri = 0;
     for (let i = 0; i < len; i++, ri += 4) {
-        out[i] = (rgba[ri] * 0.299 + rgba[ri+1] * 0.587 + rgba[ri+2] * 0.114) | 0;
+        out[i] = Math.round(rgba[ri] * 0.299 + rgba[ri+1] * 0.587 + rgba[ri+2] * 0.114);
     }
     return out;
 }
