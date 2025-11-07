@@ -2,7 +2,6 @@ const video = document.getElementById('video');
 const overlay = document.getElementById('overlay');
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
-const decimateCheckbox = document.getElementById('decimate');
 const status = document.getElementById('status');
 
 let stream = null;
@@ -50,3 +49,11 @@ function stopCamera() {
     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
 }
 
+function startLoop() {
+    function step() {
+        if (!video || video.readyState < 2){
+            rafId = requestAnimationFrame(step);
+            return;
+        }
+    }
+}
