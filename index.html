@@ -18,15 +18,14 @@
 <body>
   <h1>Gyaros AR Experience</h1>
 
-  <div id="container">
-    <video id="video" autoplay muted playsinline></video>
-    <canvas id="overlay"></canvas>
+  <div style="position:relative; width:640px; max-width:100%;">
+    <video id="video" autoplay muted playsinline style="width:100%; background:#000;"></video>
+    <canvas id="overlay" style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;"></canvas>
   </div>
 
   <div id="controls">
     <button id="startButton">Start AR</button>
     <button id="stopButton" disabled>Stop AR</button>
-    <label style="margin-left:6px">Detect every <select id="frameSkip"><option>1</option><option>2</option><option selected>3</option><option>5</option></select> frame(s)</label>
     <div id="status">Status: Idle</div>
   </div>
 

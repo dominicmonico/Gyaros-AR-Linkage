@@ -12,40 +12,46 @@ let overlayCtx = null;
 let processing = false;
 
 async function startCamera() {
-    try {
-        const constraints = { video: { facingMode : 'environment' }, audio: false };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream;
-        await video.play();
+  try {
+    const constraints = { video: { facingMode: 'environment' }, audio: false };
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-        await new Promise(resolve => {
-            if (video.readyState >= 1 && video.videoWidth && video.videoHeight) return resolve();
-            video.addEventListener('loadedmetadata', resolve, { once: true });
-            video.addEventListener('playing', resolve, { once: true });
-        });
+    // attach stream and ensure autoplay on mobile
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
 
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
+    // wait for metadata or the first frame so videoWidth/videoHeight are valid
+    await new Promise(resolve => {
+      if (video.readyState >= 1 && video.videoWidth && video.videoHeight) return resolve();
+      video.addEventListener('loadedmetadata', resolve, { once: true });
+      video.addEventListener('playing', resolve, { once: true });
+    });
 
-        hiddenCanvas = document.createElement('canvas');
-        hiddenCanvas.width = vw || 640;
-        hiddenCanvas.height = vh || 480;
+    const vw = video.videoWidth || 640;
+    const vh = video.videoHeight || 480;
 
-        hiddenCtx = hiddenCanvas.getContext('2d');
-        if (overlay.width !== vw || overlay.height !== vh) {
-            overlay.width = vw;
-            overlay.height = vh;
-        }
-        overlayCtx = overlay.getContext('2d');
+    // create hidden canvas sized to actual video pixel dimensions
+    hiddenCanvas = document.createElement('canvas');
+    hiddenCanvas.width = vw;
+    hiddenCanvas.height = vh;
+    hiddenCtx = hiddenCanvas.getContext('2d');
 
-        startLoop();
-        startButton.disabled = true;
-        stopButton.disabled = false;
-    }
-    catch (err) {
-        console.error('camera error', err);
-    }
+    // make sure overlay canvas has sensible numeric dimensions (not undefined/0)
+    overlay.width = vw;
+    overlay.height = vh;
+    overlayCtx = overlay.getContext('2d');
+
+    startLoop();
+    startButton.disabled = true;
+    stopButton.disabled = false;
+    status.textContent = 'running';
+  } catch (err) {
+    console.error('camera error', err);
+    status.textContent = 'camera error';
+  }
 }
+
 
 function stopCamera() {
     if (stream) {
