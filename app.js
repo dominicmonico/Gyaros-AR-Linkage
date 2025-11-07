@@ -24,7 +24,7 @@ async function startCamera() {
         hiddenCanvas = document.createElement('canvas');
         hiddenCanvas.width = vw || 640;
         hiddenCanvas.height = vh || 480;
-        
+
         hiddenCtx = hiddenCanvas.getContext('2d');
         if (overlay.width !== vw || overlay.height !== vh) {
             overlay.width = vw;
@@ -91,3 +91,7 @@ function rgbaToGray(rgba, width, height) {
     }
     return out;
 }
+
+startButton.addEventListener('click', startCamera);
+stopButton.addEventListener('click', stopCamera);
+window.addEventListener('beforeunload', stopCamera);
