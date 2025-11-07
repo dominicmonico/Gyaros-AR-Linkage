@@ -18,6 +18,12 @@ async function startCamera() {
         video.srcObject = stream;
         await video.play();
 
+        await new Promise(resolve => {
+            if (video.readyState >= 1 && video.videoWidth && video.videoHeight) return resolve();
+            video.addEventListener('loadedmetadata', resolve, { once: true });
+            video.addEventListener('playing', resolve, { once: true });
+        });
+
         const vw = video.videoWidth;
         const vh = video.videoHeight;
 
