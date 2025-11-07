@@ -40,7 +40,15 @@ async function startCamera() {
     // make sure overlay canvas has sensible numeric dimensions (not undefined/0)
     overlay.width = vw;
     overlay.height = vh;
+    overlay.style.width = video.clientWidth + 'px';
+    overlay.style.height = video.clientHeight + 'px';
     overlayCtx = overlay.getContext('2d');
+
+    overlay.style.position = 'absolute';
+    overlay.style.left = '0';
+    overlay.style.top = '0';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.background = 'transparent';
 
     startLoop();
     startButton.disabled = true;
