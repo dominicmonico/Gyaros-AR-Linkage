@@ -1,75 +1,35 @@
 <!DOCTYPE html>
-<script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.6.0/dist/aframe-master.min.js"></script>
-<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+<html lang = "en">
+<head>
+  <meta charset = "UTF-8" />
+  <meta name = "viewport" content = "width=device-width, initial-scale=1.0" />
+  <title>Gyaros AR Experience</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 12px; color:#222;}
+    #container { position: relative; width: 640px; max-width: 100%;}
+    video, canvas { width: 100%; height: auto; display: block; background: #111;}
+    #overlay { position: absolute; left: 0; top: 0; pointer-events: none;}
+    #controls { margin-top: 8px; display:flex; gap:8px; align-items:center;}
+    button { padding: 6px 10px;}
+    label { font-size: 14px; color:#333;}
+    #status { margin-left:auto; font-size:13px; color:#555;}
+  </style>
+</head>
+<body>
+  <h1>Gyaros AR Experience</h1>
 
-<style>
-  .arjs-loader {
-    height: 100%;
-    width: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    background-color: rgba(0, 0, 0, 0.8);
-    z-index: 9999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .arjs-loader div {
-    text-align: center;
-    font-size: 1.25em;
-    color: white;
-  }
-</style>
-
-<body style="margin : 0px; overflow: hidden;">
-  <!-- minimal loader shown until image descriptors are loaded -->
-  <div class="arjs-loader">
-    <div>Loading, please wait...</div>
+  <div id="container">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
   </div>
-  <a-scene
-    vr-mode-ui="enabled: false;"
-    renderer="logarithmicDepthBuffer: true; precision: medium;"
-    embedded
-    arjs="trackingMethod: best; sourceType: webcam;debugUIEnabled: false;"
-  >
-    <!-- we use cors proxy to avoid cross-origin problems ATTENTION! you need to set up your server -->
-    <a-nft
-      type="nft"
-      url="https://raw.githack.com/dominicmonico/Gyaros-AR-Linkage/main/Markers/Marker2"
-      id="marker2"
-      smooth="true"
-      smoothCount="10"
-      smoothTolerance=".01"
-      smoothThreshold="5"
-    >
-    </a-nft>
-    <a-nft
-      type="nft"
-      url="https://raw.githack.com/KrazyKoi/artest.github.io/refs/heads/main/gurttesting/Marker1"
-      id="mark1"
-      smooth="true"
-      smoothCount="10"
-      smoothTolerance=".01"
-      smoothThreshold="5"
-    >
-    </a-nft>
-    <a-nft
-      type="nft"
-      url="https://raw.githack.com/KrazyKoi/artest.github.io/refs/heads/main/gurttesting/gurttesting"
-      id="gurt"
-      smooth="true"
-      smoothCount="10"
-      smoothTolerance=".01"
-      smoothThreshold="5"
-    >
-    </a-nft>
-    <a-entity camera></a-entity>
-  </a-scene>
-  <script>
-    document.querySelector('#marker2').addEventListener('markerFound', () => {
-    window.location.href = 'https://alexs-mobs-unofficial.fandom.com/wiki/Ambergris';});
-  </script>
 
+  <div id="controls">
+    <button id="startButton">Start AR</button>
+    <button id="stopButton" disabled>Stop AR</button>
+    <label><input type="checkbox" id="debugCheckbox" /> Show Debug Info</label>
+    <div id="status">Status: Idle</div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
+</html>
