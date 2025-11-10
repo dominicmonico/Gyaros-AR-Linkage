@@ -1,5 +1,5 @@
 postMessage({ type: 'worker-started' });
-importScripts('apriltag.js');
+importScripts('apriltag_wasm.js');
 
 let module = null;
 let detectorPtr = 0;
