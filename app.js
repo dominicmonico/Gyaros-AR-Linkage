@@ -134,7 +134,7 @@ function startLoop() {
         const frame = hiddenCtx.getImageData(0, 0, cw, ch);
         const gray = rgbaToGray(frame.data, frame.width, frame.height);
 
-        const detections = detectAprilTags(gray, w, h)
+        const detections = detectAprilTags(gray, cw, ch)
 
         overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
         //drawDetections(overlayCtx, detections);
@@ -155,8 +155,82 @@ function rgbaToGray(rgba, width, height) {
 }
 
 function detectAprilTags(gray, width, height) {
-    
+    if(!AT.initialized || !AT.module || !AT.detectorPtr) return [];
+
+    const module = AT.module;
+    const cwrap = module.cwrap;
+
+    const bytesNeeded = width * height;
+    if(bytesNeeded > AT.imgSize){
+        if(AT.imgPtr){
+            module._free(AT.imgPtr);
+        }
+        AT.imgPtr = module._malloc(bytesNeeded);
+        AT.imgSize = bytesNeeded;
+    }
+
+    module.HEAPU8.set(gray, AT.imgPtr);
+
+    const detect = cwrap("apriltag_detector_detect", 'number', ['number', 'number', 'number', 'number']);
+    const detectionsPtr = detect(AT.detectorPtr, AT.imgPtr, width, height);
+    if (!detectionsPtr) return [];
+
+    const getSize = cwrap('apriltag_detections_size', 'number', ['number']);
+    const getDet = cwrap('apriltag_detections_get', 'number', ['number', 'number']);
+    const getId = cwrap('apriltag_detection_id', 'number', ['number']);
+    const getPx = cwrap('apriltag_detection_px', 'number', ['number', 'number']);
+    const getPy = cwrap('apriltag_detection_py', 'number', ['number', 'number']);
+    const destroyList = cwrap('apriltag_detection_list_destroy', null, ['number']);
+
+    const count = getSize(detectionsPtr);
+    const detections = [];
+
+    for(let i = 0; i < count; i++){
+        const detPtr = getDet(detectionsPtr, i);
+        const id = getId(detPtr);
+        const corners = [];
+        for(let j = 0; j < 4; j++){
+            const px = getPx(detPtr, j);
+            const py = getPy(detPtr, j);
+            corners.push({x: px, y: py});
+        }
+        const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4;
+        const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4;
+        detections.push({id, corners, center: {x: cx, y: cy}});
+    }
+    destroyList(detectionsPtr);
+    return detections;
 }
+
+function drawDetections(ctx, detections) {
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'lime';
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.font = '18px sans-serif';
+
+    detections.forEach(d => {
+        const c = d.corners;
+        ctx.beginPath();
+        ctx.moveTo(c[0].x, c[0].y);
+        ctx.lineTo(c[1].x, c[1].y);
+        ctx.lineTo(c[2].x, c[2].y);
+        ctx.lineTo(c[3].x, c[3].y);
+        ctx.closePath();
+        ctx.stroke();
+
+        const label = `id:${d.id}`;
+        const px = d.center.x, py = d.center.y;
+        const metrics = ctx.measureText(label);
+        const pad = 8;
+        const w = metrics.width + pad;
+        const h = 22;
+        ctx.fillRect(px - w/2, py - h/2, w, h);
+        ctx.fillStyle = 'lime';
+        ctx.fillText(label, px - metrics.width/2, py + 6);
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    });
+}
+
 
 startButton.addEventListener('click', startCamera);
 stopButton.addEventListener('click', stopCamera);
