@@ -18,6 +18,56 @@ postMessage({
 });
 
 let module = null;
+let moduleInstance = null;
+if (typeof AprilTagWasm !== 'undefined' && AprilTagWasm) {
+    // loader exposes a namespace object named AprilTagWasm
+    postMessage({ type: 'debug', msg: 'Found AprilTagWasm global' });
+    // many builds put runtime state on AprilTagWasm.Module or on AprilTagWasm itself
+    // prefer AprilTagWasm.Module.ready if present, else AprilTagWasm.ready, else AprilTagWasm
+    const maybeModule = AprilTagWasm.Module || AprilTagWasm;
+    if (maybeModule && maybeModule.ready && typeof maybeModule.ready.then === 'function') {
+        await maybeModule.ready;
+        moduleInstance = maybeModule;
+    } else if (maybeModule && maybeModule.ready && typeof maybeModule.ready === 'object') {
+        // fallback: wait if it's a promise-like
+        await maybeModule.ready;
+        moduleInstance = maybeModule;
+    } else {
+        // sometimes the wrapper expects you to call a factory function on the namespace
+        if (typeof AprilTagWasm === 'function') {
+        moduleInstance = await AprilTagWasm();
+        } else {
+        // if none of the above, assume the namespace itself is the module (synchronous)
+        moduleInstance = maybeModule;
+        }
+    }
+} else if (typeof ApriltagModule === 'function') {
+    // some builds expose a factory function
+    postMessage({ type: 'debug', msg: 'Found ApriltagModule factory' });
+    moduleInstance = await ApriltagModule();
+} else if (typeof Module !== 'undefined') {
+    // older Emscripten global Module
+    postMessage({ type: 'debug', msg: 'Found global Module' });
+    moduleInstance = Module;
+    if (moduleInstance.onRuntimeInitialized) {
+        await new Promise(resolve => {
+        const prev = moduleInstance.onRuntimeInitialized;
+        moduleInstance.onRuntimeInitialized = () => { prev && prev(); resolve(); };
+        });
+    }
+} else {
+    postMessage({ type: 'error', error: 'No apriltag module found in worker (checked AprilTagWasm, ApriltagModule, Module)' });
+    return;
+}
+
+if (!moduleInstance || !moduleInstance.cwrap) {
+    postMessage({ type: 'error', error: 'Module initialized but cwrap not available. moduleInstance keys: ' + Object.keys(moduleInstance).slice(0,20).join(',') });
+    return;
+}
+
+// Export moduleInstance to the rest of your worker code
+module = moduleInstance;
+postMessage({ type: 'ready' });
 let detectorPtr = 0;
 let imgPtr = 0;
 let imgSize = 0;
