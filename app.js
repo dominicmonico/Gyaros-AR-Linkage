@@ -129,12 +129,15 @@ function startLoop() {
         // Send the grayscale buffer to the worker for detection.
         // Transfer the underlying ArrayBuffer to avoid copying (high-performance).
         // After transfer the buffer is neutered here; we allocate a fresh gray on next frame (rgbaToGray returns a new Uint8Array).
+        hiddenCtx.save();
+        hiddenCtx.scale(-1,1);
         try {
         atWorker.postMessage({ type: 'detect', image: { data: gray, width: cw, height: ch } }, [gray.buffer]);
         } catch (e) {
         // Fallback if transfer isn't supported or fails: send without transferring (copy)
         atWorker.postMessage({ type: 'detect', image: { data: gray, width: cw, height: ch } });
         }
+        hiddenCtx.restore();
 
         // Note: do NOT clear or draw detections here. The worker will post back results and
         // your atWorker.onmessage handler already calls drawDetections when results arrive.

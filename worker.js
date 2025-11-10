@@ -40,11 +40,13 @@ self.onmessage = async (ev) => {
         }
 
         const tag16h5_create = module.cwrap('tag16h5_create', 'number', []);
-        const apriltag_detector_create = module.cwrap('apriltag_detector_create', 'number', []);
+        const detectorPtr = module.cwrap('apriltag_detector_create', 'number', []);
         const apriltag_detector_add_family_bits = module.cwrap('apriltag_detector_add_family_bits', null, ['number','number']);
+        module.cwrap('apriltag_detector_add_family_bits','void',['number','number'])(detectorPtr, family);
+        postMessage({ type: 'debug', msg: 'familyPtr:'+family, detectorPtr: detectorPtr });
 
         const family = tag16h5_create();
-        detectorPtr = apriltag_detector_create();
+        detectorPtr = detectorPtr();
         apriltag_detector_add_family_bits(detectorPtr, family);
 
         cwrapFns.detectFn = module.cwrap('apriltag_detector_detect', 'number', ['number', 'number', 'number', 'number']);
@@ -91,6 +93,8 @@ self.onmessage = async (ev) => {
             imgSize = bytesNeeded;
         }
 
+        const checkSum = data[0] + data[1] + data[2] + data[3];
+        postMessage({ type: 'debug', imgInfo: { width, height, len: data.length, checksum: checkSum } });
         // copy into wasm heap (sized in bytesNeeded)
         module.HEAPU8.set(data.subarray(0, bytesNeeded), imgPtr);
 
