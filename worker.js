@@ -1,9 +1,9 @@
 postMessage({ type: 'worker-started' });
 try {
-  importScripts('apriltag_wasm.js');
+  importScripts('apriltag_wasm.js'); // use the exact filename you already used
   postMessage({ type: 'debug', msg: 'importScripts succeeded' });
 } catch (err) {
-  postMessage({ type: 'error', error: 'importScripts failed: ' + String(err) });
+  postMessage({ type: 'error', error: 'importScripts threw: ' + String(err) });
 }
 
 postMessage({
@@ -11,8 +11,9 @@ postMessage({
   globals: {
     ApriltagModule: typeof ApriltagModule,
     Module: typeof Module,
-    apriltag: typeof apriltag,
-    selfKeys: Object.keys(self).slice(0,50)
+    createApriltag: typeof createApriltag,
+    Comlink: typeof Comlink,
+    keys: Object.keys(self).filter(k => /apriltag|tag|Module|create/i.test(k)).slice(0,40)
   }
 });
 
