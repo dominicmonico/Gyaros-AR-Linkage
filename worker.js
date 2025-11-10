@@ -7,14 +7,14 @@ try {
 }
 
 postMessage({
-  type: 'debug',
-  globals: {
-    ApriltagModule: typeof ApriltagModule,
-    Module: typeof Module,
-    createApriltag: typeof createApriltag,
-    Comlink: typeof Comlink,
-    keys: Object.keys(self).filter(k => /apriltag|tag|Module|create/i.test(k)).slice(0,40)
-  }
+    type: 'debug',
+    globals: {
+        ApriltagModule: typeof ApriltagModule,
+        Module: typeof Module,
+        createApriltag: typeof createApriltag,
+        Comlink: typeof Comlink,
+        keys: Object.keys(self).filter(k => /apriltag|tag|Module|create/i.test(k)).slice(0,40)
+    }
 });
 
 let module = null;
