@@ -74,7 +74,7 @@ async function initModuleFromLoader() {
 function setupDetectorAndCwraps() {
   const cwrap = module.cwrap.bind(module);
 
-  cwrapFns.tagCreate = cwrap('tag16h5_create', 'number', []);
+  cwrapFns.tagCreate = cwrap('tag36h11_create', 'number', []);
   cwrapFns.apriltag_detector_create = cwrap('apriltag_detector_create', 'number', []);
   cwrapFns.add_family_bits = cwrap('apriltag_detector_add_family_bits', 'void', ['number','number']);
 
