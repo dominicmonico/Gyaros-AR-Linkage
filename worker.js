@@ -70,20 +70,86 @@ async function initModuleFromLoader() {
   throw new Error('No apriltag loader found in worker (checked AprilTagWasm, ApriltagModule, Module)');
 }
 
-// initialize detector and cwrap functions (call after module is set)
+// robust family creator: try cwrap(name), then raw _name, then scan exports
+function findAndCreateFamily(module, familyNames = ['tag36h11_create','tag16h5_create','tag25h9_create','tag36h10_create']) {
+  for (const name of familyNames) {
+    // 1) try module.cwrap (safe: cwrap throws if symbol missing, catch it)
+    if (typeof module.cwrap === 'function') {
+      try {
+        const fn = module.cwrap(name, 'number', []);
+        if (typeof fn === 'function') {
+          const ptr = fn();
+          postMessage({ type: 'debug', msg: `family created via cwrap: ${name} -> ptr ${ptr}` });
+          return ptr;
+        }
+      } catch (e) {
+        // symbol not found via cwrap
+      }
+    }
+
+    // 2) try raw exported symbol (underscore-prefixed)
+    const raw = '_' + name;
+    if (raw in module && typeof module[raw] === 'function') {
+      try {
+        const ptr = module[raw]();
+        postMessage({ type: 'debug', msg: `family created via raw export: ${raw} -> ptr ${ptr}` });
+        return ptr;
+      } catch (e) {
+        // calling raw export failed
+      }
+    }
+  }
+
+  // 3) scan module keys for anything that looks like a tag-family creator
+  const scan = Object.keys(module).find(k => /tag.*create/i.test(k));
+  if (scan) {
+    try {
+      // if it's raw (starts with _), call it; else try cwrap then raw fallback
+      if (scan[0] === '_') {
+        const ptr = module[scan]();
+        postMessage({ type: 'debug', msg: `family created via scanned raw: ${scan} -> ptr ${ptr}` });
+        return ptr;
+      } else {
+        try {
+          const fn = module.cwrap(scan, 'number', []);
+          const ptr = fn();
+          postMessage({ type: 'debug', msg: `family created via scanned cwrap: ${scan} -> ptr ${ptr}` });
+          return ptr;
+        } catch (e) {
+          // fallback raw call if available
+          if (typeof module[scan] === 'function') {
+            const ptr = module[scan]();
+            postMessage({ type: 'debug', msg: `family created via scanned function: ${scan} -> ptr ${ptr}` });
+            return ptr;
+          }
+        }
+      }
+    } catch (e) {
+      // ignore and continue
+    }
+  }
+
+  // nothing found
+  postMessage({ type: 'debug', msg: 'No family create function found. Module keys sample: ' + Object.keys(module).slice(0,80).join(',') });
+  return 0;
+}
+
 function setupDetectorAndCwraps() {
   const cwrap = module.cwrap.bind(module);
 
-  cwrapFns.tagCreate = cwrap('tag36h11_create', 'number', []);
+  // detection helper cwraps (create wrappers but don't call them yet)
   cwrapFns.apriltag_detector_create = cwrap('apriltag_detector_create', 'number', []);
   cwrapFns.add_family_bits = cwrap('apriltag_detector_add_family_bits', 'void', ['number','number']);
 
-  // create family and detector
-  const familyPtr = cwrapFns.tagCreate();
+  // find and create family using the now-initialized module
+  const familyPtr = findAndCreateFamily(module, ['tag36h11_create','tag16h5_create','tag25h9_create','tag36h10_create']);
+  if (!familyPtr) throw new Error('No usable tag family create function found in module');
+
+  // create detector and attach family
   detectorPtr = cwrapFns.apriltag_detector_create();
   cwrapFns.add_family_bits(detectorPtr, familyPtr);
 
-  // detection helper cwraps
+  // cached detection cwraps
   cwrapFns.detectFn = cwrap('apriltag_detector_detect', 'number', ['number','number','number','number']);
   cwrapFns.sizeFn = cwrap('apriltag_detections_size', 'number', ['number']);
   cwrapFns.getFn = cwrap('apriltag_detections_get', 'number', ['number','number']);
@@ -91,6 +157,8 @@ function setupDetectorAndCwraps() {
   cwrapFns.pxFn = cwrap('apriltag_detection_px', 'number', ['number','number']);
   cwrapFns.pyFn = cwrap('apriltag_detection_py', 'number', ['number','number']);
   cwrapFns.destroyFn = cwrap('apriltag_detection_list_destroy', 'void', ['number']);
+
+  postMessage({ type: 'debug', msg: 'Detector setup done, detectorPtr=' + detectorPtr });
 }
 
 // message handler (async so we can await loader promises)
