@@ -1,6 +1,6 @@
 postMessage({ type: 'worker-started' });
 try {
-  importScripts('apriltag_wasm.js'); // change this name to exactly the file shown in Network
+  importScripts('apriltag_wasm.js');
   postMessage({ type: 'debug', msg: 'importScripts succeeded' });
 } catch (err) {
   postMessage({ type: 'error', error: 'importScripts failed: ' + String(err) });
