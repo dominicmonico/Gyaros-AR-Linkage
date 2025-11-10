@@ -1,3 +1,5 @@
+importScripts('apriltag.js');
+
 const video = document.getElementById('video');
 const overlay = document.getElementById('overlay');
 const startButton = document.getElementById('startButton');
