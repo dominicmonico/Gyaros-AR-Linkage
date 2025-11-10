@@ -1,5 +1,20 @@
 postMessage({ type: 'worker-started' });
-importScripts('apriltag_wasm.js');
+try {
+  importScripts('apintag_wasm.js'); // change this name to exactly the file shown in Network
+  postMessage({ type: 'debug', msg: 'importScripts succeeded' });
+} catch (err) {
+  postMessage({ type: 'error', error: 'importScripts failed: ' + String(err) });
+}
+
+postMessage({
+  type: 'debug',
+  globals: {
+    ApriltagModule: typeof ApriltagModule,
+    Module: typeof Module,
+    apriltag: typeof apriltag,
+    selfKeys: Object.keys(self).slice(0,50)
+  }
+});
 
 let module = null;
 let detectorPtr = 0;
