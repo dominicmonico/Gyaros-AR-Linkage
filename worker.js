@@ -175,10 +175,12 @@ self.onmessage = async (ev) => {
   const msg = ev.data;
   if (msg.type === 'init') {
     try {
-      module = await initModuleFromLoader();
+        module = await initModuleFromLoader();
+        const keys = Object.keys(module || {}).filter(k => /apriltag|apriltag_detector|detector|detection|tag|_apriltag|_tag|_detect/i.test(k));
+        postMessage({ type:'debug-exports', keys });
     } catch (err) {
-      postError('No apriltag module found in worker: ' + String(err));
-      return;
+        postError('No apriltag module found in worker: ' + String(err));
+        return;
     }
 
     // debug: list keys that look relevant so you can see actual exports
