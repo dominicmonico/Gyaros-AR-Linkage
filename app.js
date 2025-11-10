@@ -1,5 +1,3 @@
-importScripts('apriltag.js');
-
 const video = document.getElementById('video');
 const overlay = document.getElementById('overlay');
 const startButton = document.getElementById('startButton');
@@ -13,45 +11,24 @@ let hiddenCtx = null;
 let overlayCtx = null;
 let processing = false;
 
-let AT = {
-  module: null,
-  detectorPtr: 0,
-  imgPtr: 0,
-  imgSize: 0,
-  initialized: false
+const atWorker = new Worker('worker.js');
+let workerReady = false;
+atWorker.onmessage = (ev) => {
+    const m = ev.data;
+    if (m.type === 'ready') {
+        workerReady = true;
+        console.log('AprilTag worker ready');
+    } else if (m.type === 'result') {
+        // receive detections for the last frame
+        const detections = m.detections;
+        // draw them (call your drawDetections)
+        overlayCtx.clearRect(0,0,overlay.width, overlay.height);
+        drawDetections(overlayCtx, detections);
+    } else if (m.type === 'error') {
+        console.error('Worker error', m.error);
+    }
 };
-
-async function initAprilTag() {
-    if(typeof ApriltagModule === 'function'){
-        AT.module = await ApriltagModule();
-    } 
-    else if (window.Module){
-        AT.module = window.Module;
-        if (AT.module.onRuntimeInitialized) {
-            await new Promise(resolve => {
-                const prev = AT.module.onRuntimeInitialized;
-                AT.module.onRuntimeInitialized = () => { prev && prev(); resolve(); };
-            });
-        }
-    }
-    else {
-        throw new Error('AprilTag loader not found. Ensure apriltag.js is loaded.');
-    }
-
-    const cwrap = AT.module.cwrap;
-
-    // Create tag family and detector (common C API names)
-    const tag16h5_create = cwrap('tag16h5_create', 'number', []);
-    const apriltag_detector_create = cwrap('apriltag_detector_create', 'number', []);
-    const apriltag_detector_add_family_bits = cwrap('apriltag_detector_add_family_bits', null, ['number','number']);
-
-    const family = tag16h5_create();
-    AT.detectorPtr = apriltag_detector_create();
-    apriltag_detector_add_family_bits(AT.detectorPtr, family);
-
-    AT.initialized = true;
-    console.log('AprilTag initialized (tag16h5)');
-}
+atWorker.postMessage({ type: 'init' });
 
 async function startCamera() {
   try {
@@ -92,7 +69,21 @@ async function startCamera() {
     overlay.style.pointerEvents = 'none';
     overlay.style.background = 'transparent';
 
-    await(initAprilTag());
+    const waitForWorker = () => new Promise(resolve => {
+    if (workerReady){
+        return resolve();
+    } 
+    const to = setTimeout(() => { console.warn('worker init timeout'); resolve(); }, 3000);
+    const onReady = (ev) => {
+        if (ev.data && ev.data.type === 'ready') {
+        atWorker.removeEventListener('message', onReady);
+        clearTimeout(to);
+        resolve();
+        }
+    };
+    atWorker.addEventListener('message', onReady);
+    });
+    await waitForWorker();
 
     startLoop();
     startButton.disabled = true;
@@ -114,8 +105,9 @@ function stopCamera() {
         cancelAnimationFrame(rafId);
         rafId = null;
     }
-    if (overlayCtx) {
+    if (overlayCtx && Array.isArray(m.detections)) {
         overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+        drawDetections(overlayCtx, m.detections);
     }
     stopButton.disabled = true;
     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
@@ -123,30 +115,33 @@ function stopCamera() {
 
 function startLoop() {
     function step() {
-        if (!video || video.readyState < 2){
-            rafId = requestAnimationFrame(step);
-            return;
-        }
+        rafId = requestAnimationFrame(step);
+        if (!video || video.readyState < 2) return;
 
         const cw = hiddenCanvas.width;
         const ch = hiddenCanvas.height;
 
-        hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-
+        hiddenCtx.drawImage(video, 0, 0, cw, ch);
         const frame = hiddenCtx.getImageData(0, 0, cw, ch);
         const gray = rgbaToGray(frame.data, frame.width, frame.height);
 
-        const detections = detectAprilTags(gray, cw, ch)
+        // Send the grayscale buffer to the worker for detection.
+        // Transfer the underlying ArrayBuffer to avoid copying (high-performance).
+        // After transfer the buffer is neutered here; we allocate a fresh gray on next frame (rgbaToGray returns a new Uint8Array).
+        try {
+        atWorker.postMessage({ type: 'detect', image: { data: gray, width: cw, height: ch } }, [gray.buffer]);
+        } catch (e) {
+        // Fallback if transfer isn't supported or fails: send without transferring (copy)
+        atWorker.postMessage({ type: 'detect', image: { data: gray, width: cw, height: ch } });
+        }
 
-        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-        //drawDetections(overlayCtx, detections);
-
-        rafId = requestAnimationFrame(step);
+        // Note: do NOT clear or draw detections here. The worker will post back results and
+        // your atWorker.onmessage handler already calls drawDetections when results arrive.
     }
     rafId = requestAnimationFrame(step);
-}
+    }
 
-function rgbaToGray(rgba, width, height) {
+    function rgbaToGray(rgba, width, height) {
     const len = width * height;
     const out = new Uint8Array(len);
     let ri = 0;
@@ -154,54 +149,6 @@ function rgbaToGray(rgba, width, height) {
         out[i] = Math.round(rgba[ri] * 0.299 + rgba[ri+1] * 0.587 + rgba[ri+2] * 0.114);
     }
     return out;
-}
-
-function detectAprilTags(gray, width, height) {
-    if(!AT.initialized || !AT.module || !AT.detectorPtr) return [];
-
-    const module = AT.module;
-    const cwrap = module.cwrap;
-
-    const bytesNeeded = width * height;
-    if(bytesNeeded > AT.imgSize){
-        if(AT.imgPtr){
-            module._free(AT.imgPtr);
-        }
-        AT.imgPtr = module._malloc(bytesNeeded);
-        AT.imgSize = bytesNeeded;
-    }
-
-    module.HEAPU8.set(gray, AT.imgPtr);
-
-    const detect = cwrap("apriltag_detector_detect", 'number', ['number', 'number', 'number', 'number']);
-    const detectionsPtr = detect(AT.detectorPtr, AT.imgPtr, width, height);
-    if (!detectionsPtr) return [];
-
-    const getSize = cwrap('apriltag_detections_size', 'number', ['number']);
-    const getDet = cwrap('apriltag_detections_get', 'number', ['number', 'number']);
-    const getId = cwrap('apriltag_detection_id', 'number', ['number']);
-    const getPx = cwrap('apriltag_detection_px', 'number', ['number', 'number']);
-    const getPy = cwrap('apriltag_detection_py', 'number', ['number', 'number']);
-    const destroyList = cwrap('apriltag_detection_list_destroy', null, ['number']);
-
-    const count = getSize(detectionsPtr);
-    const detections = [];
-
-    for(let i = 0; i < count; i++){
-        const detPtr = getDet(detectionsPtr, i);
-        const id = getId(detPtr);
-        const corners = [];
-        for(let j = 0; j < 4; j++){
-            const px = getPx(detPtr, j);
-            const py = getPy(detPtr, j);
-            corners.push({x: px, y: py});
-        }
-        const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4;
-        const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4;
-        detections.push({id, corners, center: {x: cx, y: cy}});
-    }
-    destroyList(detectionsPtr);
-    return detections;
 }
 
 function drawDetections(ctx, detections) {
