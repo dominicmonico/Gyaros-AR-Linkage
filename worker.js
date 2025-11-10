@@ -7,36 +7,17 @@ try {
 }
 
 postMessage({
-    type: 'debug',
-    globals: {
-        ApriltagModule: typeof ApriltagModule,
-        Module: typeof Module,
-        createApriltag: typeof createApriltag,
-        Comlink: typeof Comlink,
-        keys: Object.keys(self).filter(k => /apriltag|tag|Module|create/i.test(k)).slice(0,40)
-    }
+  type: 'debug',
+  globals: {
+    ApriltagModule: typeof ApriltagModule,
+    Module: typeof Module,
+    createApriltag: typeof createApriltag,
+    Comlink: typeof Comlink,
+    keys: Object.keys(self).filter(k => /apriltag|tag|Module|create/i.test(k)).slice(0,40)
+  }
 });
 
 let module = null;
-if (typeof ApriltagModule === 'function') {
-    // modularized factory
-    module = await ApriltagModule();
-} else if (typeof Module !== 'undefined') {
-    module = Module;
-    if (module.onRuntimeInitialized) {
-        await new Promise(resolve => {
-        const prev = module.onRuntimeInitialized;
-        module.onRuntimeInitialized = () => { prev && prev(); resolve(); };
-        });
-    }
-} else if (typeof createApriltag === 'function') {
-    // some builds use a different exported name
-    module = await createApriltag();
-} else {
-    postMessage({ type: 'error', error: 'No apriltag module found (no factory or Module). Inspect loader exports.' });
-    return;
-}
-postMessage({ type: 'debug', msg: 'Module initialized', modType: typeof module });
 let detectorPtr = 0;
 let imgPtr = 0;
 let imgSize = 0;
