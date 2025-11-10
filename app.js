@@ -15,6 +15,7 @@ const atWorker = new Worker('worker.js');
 let workerReady = false;
 atWorker.onmessage = (ev) => {
     const m = ev.data;
+    console.log('worker msg', m);
     if (m.type === 'ready') {
         workerReady = true;
         console.log('AprilTag worker ready');

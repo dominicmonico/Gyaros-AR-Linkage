@@ -1,3 +1,4 @@
+postMessage({ type: 'worker-started' });
 importScripts('apriltag.js');
 
 let module = null;
