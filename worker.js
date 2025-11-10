@@ -1,78 +1,25 @@
+// worker.js
+// Make sure this filename matches what your Network showed (e.g., 'apriltag_wasm.js')
+// Keep importScripts at top-level (classic worker)
 postMessage({ type: 'worker-started' });
 try {
-    importScripts('apriltag_wasm.js'); // use the exact filename you already used
-    postMessage({ type: 'debug', msg: 'importScripts succeeded' });
+  importScripts('apriltag_wasm.js'); // use the exact loader filename shown in Network
+  postMessage({ type: 'debug', msg: 'importScripts succeeded' });
 } catch (err) {
-    postMessage({ type: 'error', error: 'importScripts threw: ' + String(err) });
+  postMessage({ type: 'error', error: 'importScripts threw: ' + String(err) });
 }
 
-postMessage({
-    type: 'debug',
-    globals: {
-        ApriltagModule: typeof ApriltagModule,
-        Module: typeof Module,
-        createApriltag: typeof createApriltag,
-        Comlink: typeof Comlink,
-        keys: Object.keys(self).filter(k => /apriltag|tag|Module|create/i.test(k)).slice(0,40)
-    }
-});
-
+// shared module and detector state
 let module = null;
-let moduleInstance = null;
-if (typeof AprilTagWasm !== 'undefined' && AprilTagWasm) {
-    // loader exposes a namespace object named AprilTagWasm
-    postMessage({ type: 'debug', msg: 'Found AprilTagWasm global' });
-    // many builds put runtime state on AprilTagWasm.Module or on AprilTagWasm itself
-    // prefer AprilTagWasm.Module.ready if present, else AprilTagWasm.ready, else AprilTagWasm
-    const maybeModule = AprilTagWasm.Module || AprilTagWasm;
-    if (maybeModule && maybeModule.ready && typeof maybeModule.ready.then === 'function') {
-        await maybeModule.ready;
-        moduleInstance = maybeModule;
-    } else if (maybeModule && maybeModule.ready && typeof maybeModule.ready === 'object') {
-        // fallback: wait if it's a promise-like
-        await maybeModule.ready;
-        moduleInstance = maybeModule;
-    } else {
-        // sometimes the wrapper expects you to call a factory function on the namespace
-        if (typeof AprilTagWasm === 'function') {
-        moduleInstance = await AprilTagWasm();
-        } else {
-        // if none of the above, assume the namespace itself is the module (synchronous)
-        moduleInstance = maybeModule;
-        }
-    }
-} else if (typeof ApriltagModule === 'function') {
-    // some builds expose a factory function
-    postMessage({ type: 'debug', msg: 'Found ApriltagModule factory' });
-    moduleInstance = await ApriltagModule();
-} else if (typeof Module !== 'undefined') {
-    // older Emscripten global Module
-    postMessage({ type: 'debug', msg: 'Found global Module' });
-    moduleInstance = Module;
-    if (moduleInstance.onRuntimeInitialized) {
-        await new Promise(resolve => {
-        const prev = moduleInstance.onRuntimeInitialized;
-        moduleInstance.onRuntimeInitialized = () => { prev && prev(); resolve(); };
-        });
-    }
-} else {
-    postMessage({ type: 'error', error: 'No apriltag module found in worker (checked AprilTagWasm, ApriltagModule, Module)' });
-    return;
-}
-
-if (!moduleInstance || !moduleInstance.cwrap) {
-    postMessage({ type: 'error', error: 'Module initialized but cwrap not available. moduleInstance keys: ' + Object.keys(moduleInstance).slice(0,20).join(',') });
-    return;
-}
-
-// Export moduleInstance to the rest of your worker code
-module = moduleInstance;
-postMessage({ type: 'ready' });
 let detectorPtr = 0;
 let imgPtr = 0;
 let imgSize = 0;
 
+// cached cwraps to avoid calling cwrap repeatedly
 let cwrapFns = {
+  tagCreate: null,
+  apriltag_detector_create: null,
+  add_family_bits: null,
   detectFn: null,
   sizeFn: null,
   getFn: null,
@@ -82,126 +29,167 @@ let cwrapFns = {
   destroyFn: null
 };
 
+function postError(msg) {
+  postMessage({ type: 'error', error: String(msg) });
+}
+
+// helper to initialize the Emscripten module in common loader shapes
+async function initModuleFromLoader() {
+  // If loader exposes AprilTagWasm namespace with a ready promise
+  if (typeof AprilTagWasm !== 'undefined' && AprilTagWasm) {
+    const maybe = AprilTagWasm.Module || AprilTagWasm;
+    if (maybe && maybe.ready && typeof maybe.ready.then === 'function') {
+      await maybe.ready;
+      return maybe;
+    }
+    // sometimes the wrapper itself is a factory function
+    if (typeof AprilTagWasm === 'function') {
+      return await AprilTagWasm();
+    }
+    // fallback: assume maybe is synchronous module container
+    return maybe;
+  }
+
+  // Emscripten factory
+  if (typeof ApriltagModule === 'function') {
+    return await ApriltagModule();
+  }
+
+  // classic Module global
+  if (typeof Module !== 'undefined') {
+    const m = Module;
+    if (m.onRuntimeInitialized) {
+      await new Promise(resolve => {
+        const prev = m.onRuntimeInitialized;
+        m.onRuntimeInitialized = () => { prev && prev(); resolve(); };
+      });
+    }
+    return m;
+  }
+
+  throw new Error('No apriltag loader found in worker (checked AprilTagWasm, ApriltagModule, Module)');
+}
+
+// initialize detector and cwrap functions (call after module is set)
+function setupDetectorAndCwraps() {
+  const cwrap = module.cwrap.bind(module);
+
+  cwrapFns.tagCreate = cwrap('tag16h5_create', 'number', []);
+  cwrapFns.apriltag_detector_create = cwrap('apriltag_detector_create', 'number', []);
+  cwrapFns.add_family_bits = cwrap('apriltag_detector_add_family_bits', 'void', ['number','number']);
+
+  // create family and detector
+  const familyPtr = cwrapFns.tagCreate();
+  detectorPtr = cwrapFns.apriltag_detector_create();
+  cwrapFns.add_family_bits(detectorPtr, familyPtr);
+
+  // detection helper cwraps
+  cwrapFns.detectFn = cwrap('apriltag_detector_detect', 'number', ['number','number','number','number']);
+  cwrapFns.sizeFn = cwrap('apriltag_detections_size', 'number', ['number']);
+  cwrapFns.getFn = cwrap('apriltag_detections_get', 'number', ['number','number']);
+  cwrapFns.idFn = cwrap('apriltag_detection_id', 'number', ['number']);
+  cwrapFns.pxFn = cwrap('apriltag_detection_px', 'number', ['number','number']);
+  cwrapFns.pyFn = cwrap('apriltag_detection_py', 'number', ['number','number']);
+  cwrapFns.destroyFn = cwrap('apriltag_detection_list_destroy', 'void', ['number']);
+}
+
+// message handler (async so we can await loader promises)
 self.onmessage = async (ev) => {
-    const msg = ev.data;
-    if (msg.type === 'init') {
-        if (typeof ApriltagModule === 'function') {
-            module = await ApriltagModule();
-        } 
-        else if (self.Module) {
-            module = self.Module;
-            await new Promise(resolve => {
-                if (module.onRuntimeInitialized) {
-                    const prev = module.onRuntimeInitialized;
-                    module.onRuntimeInitialized = () => {prev && prev(); resolve();}
-                }
-                else{
-                    resolve();
-                }
-            });
-        }
-        else {
-            postMessage({ type: 'error', error: 'No apriltag module found in worker' });
-            return;
-        }
+  const msg = ev.data;
 
-        const tag16h5_create = module.cwrap('tag16h5_create', 'number', []);
-        const detectorPtr = module.cwrap('apriltag_detector_create', 'number', []);
-        const apriltag_detector_add_family_bits = module.cwrap('apriltag_detector_add_family_bits', null, ['number','number']);
-        module.cwrap('apriltag_detector_add_family_bits','void',['number','number'])(detectorPtr, family);
-        postMessage({ type: 'debug', msg: 'familyPtr:'+family, detectorPtr: detectorPtr });
-
-        const family = tag16h5_create();
-        detectorPtr = detectorPtr();
-        apriltag_detector_add_family_bits(detectorPtr, family);
-
-        cwrapFns.detectFn = module.cwrap('apriltag_detector_detect', 'number', ['number', 'number', 'number', 'number']);
-        cwrapFns.sizeFn = module.cwrap('apriltag_detections_size', 'number', ['number']);
-        cwrapFns.getFn = module.cwrap('apriltag_detections_get', 'number', ['number', 'number']);
-        cwrapFns.idFn = module.cwrap('apriltag_detection_id', 'number', ['number']);
-        cwrapFns.pxFn = module.cwrap('apriltag_detection_px', 'number', ['number', 'number']);
-        cwrapFns.pyFn = module.cwrap('apriltag_detection_py', 'number', ['number', 'number']);
-        cwrapFns.destroyFn = module.cwrap('apriltag_detection_list_destroy', 'void', ['number']);
-
-        postMessage({type:'ready'});
-        return;
+  if (msg.type === 'init') {
+    try {
+      module = await initModuleFromLoader();
+    } catch (err) {
+      postError('No apriltag module found in worker: ' + String(err));
+      return;
     }
 
-    if (msg.type === 'detect') {
-        if (!module || !detectorPtr) {
-            postMessage({ type: 'result', detections: [] });
-            return;
-        }
-
-        const image = msg.image;
-        if (!image || !image.data || !image.width || !image.height) {
-            postError('Invalid image message to worker');
-            return;
-        }
-
-        // Normalize data to Uint8Array (accept Uint8Array or Uint8ClampedArray or ArrayBuffer)
-        let data = image.data;
-        if (data instanceof Uint8ClampedArray || data instanceof Uint8Array) {
-            // create a Uint8Array view if it's clamped; copy only if necessary
-            if (data instanceof Uint8ClampedArray) data = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-        } else if (data && data.buffer) {
-            data = new Uint8Array(data.buffer);
-        } else {
-            data = new Uint8Array(data);
-        }
-
-        const width = image.width;
-        const height = image.height;
-        const bytesNeeded = width * height;
-        if (bytesNeeded > imgSize) {
-            if (imgPtr) module._free(imgPtr);
-            imgPtr = module._malloc(bytesNeeded);
-            imgSize = bytesNeeded;
-        }
-
-        const checkSum = data[0] + data[1] + data[2] + data[3];
-        postMessage({ type: 'debug', imgInfo: { width, height, len: data.length, checksum: checkSum } });
-        // copy into wasm heap (sized in bytesNeeded)
-        module.HEAPU8.set(data.subarray(0, bytesNeeded), imgPtr);
-
-        // call detector
-        const detectFn = cwrapFns.detectFn;
-        if (!detectFn) {
-            postError('detect function not available in worker; check apriltag build');
-            return;
-        }
-
-        const detListPtr = detectFn(detectorPtr, imgPtr, width, height);
-        if (!detListPtr) {
-            postMessage({ type: 'result', detections: [] });
-            return;
-        }
-
-        // read detections
-        const sizeFn = cwrapFns.sizeFn;
-        const getFn = cwrapFns.getFn;
-        const idFn = cwrapFns.idFn;
-        const pxFn = cwrapFns.pxFn;
-        const pyFn = cwrapFns.pyFn;
-        const destroyFn = cwrapFns.destroyFn;
-
-        const count = sizeFn(detListPtr);
-        const out = [];
-        for (let i = 0; i < count; i++) {
-            const detPtr = getFn(detListPtr, i);
-            const id = idFn(detPtr);
-            const corners = [];
-            for (let j = 0; j < 4; j++) {
-            corners.push({ x: pxFn(detPtr, j), y: pyFn(detPtr, j) });
-            }
-            const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4;
-            const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4;
-            out.push({ id, corners, center: { x: cx, y: cy } });
-        }
-
-        destroyFn(detListPtr);
-        postMessage({ type: 'result', detections: out });
-        return;
+    if (!module || typeof module.cwrap !== 'function') {
+      postError('Module loaded but module.cwrap not available. keys: ' + Object.keys(module || {}).slice(0,20).join(','));
+      return;
     }
+
+    try {
+      setupDetectorAndCwraps();
+    } catch (err) {
+      postError('Detector setup failed: ' + String(err));
+      return;
+    }
+
+    postMessage({ type: 'ready' });
+    return;
+  }
+
+  if (msg.type === 'detect') {
+    if (!module || !detectorPtr) {
+      postMessage({ type: 'result', detections: [] });
+      return;
+    }
+
+    const image = msg.image;
+    if (!image || !image.data || !image.width || !image.height) {
+      postError('Invalid image message to worker');
+      return;
+    }
+
+    // Normalize data to Uint8Array
+    let data = image.data;
+    if (data instanceof Uint8ClampedArray) {
+      data = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    } else if (!(data instanceof Uint8Array)) {
+      if (data && data.buffer) data = new Uint8Array(data.buffer);
+      else data = new Uint8Array(data);
+    }
+
+    const width = image.width;
+    const height = image.height;
+    const bytesNeeded = width * height;
+    if (data.length < bytesNeeded) {
+      postError('Gray buffer too small: ' + data.length + ' < ' + bytesNeeded);
+      postMessage({ type: 'result', detections: [] });
+      return;
+    }
+
+    // allocate or reallocate image buffer in wasm heap
+    if (bytesNeeded > imgSize) {
+      if (imgPtr) module._free(imgPtr);
+      imgPtr = module._malloc(bytesNeeded);
+      imgSize = bytesNeeded;
+    }
+
+    // debug sample
+    const checksum = data[0] + data[1] + data[2] + data[3];
+    postMessage({ type: 'debug', imgInfo: { width, height, len: data.length, checksum } });
+
+    // copy into wasm heap
+    module.HEAPU8.set(data.subarray(0, bytesNeeded), imgPtr);
+
+    // call detector
+    const detListPtr = cwrapFns.detectFn(detectorPtr, imgPtr, width, height);
+    if (!detListPtr) {
+      postMessage({ type: 'result', detections: [] });
+      return;
+    }
+
+    const count = cwrapFns.sizeFn(detListPtr);
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const detPtr = cwrapFns.getFn(detListPtr, i);
+      const id = cwrapFns.idFn(detPtr);
+      const corners = [];
+      for (let j = 0; j < 4; j++) {
+        corners.push({ x: cwrapFns.pxFn(detPtr, j), y: cwrapFns.pyFn(detPtr, j) });
+      }
+      const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4;
+      const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4;
+      out.push({ id, corners, center: { x: cx, y: cy } });
+    }
+
+    cwrapFns.destroyFn(detListPtr);
+    postMessage({ type: 'result', detections: out });
+    return;
+  }
+
+  postError('Unknown message type: ' + String(msg && msg.type));
 };
-
