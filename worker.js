@@ -1,40 +1,40 @@
 postMessage({ type: 'worker-started' });
 try {
-  importScripts('apriltag_wasm.js'); // use the exact filename you already used
-  postMessage({ type: 'debug', msg: 'importScripts succeeded' });
+    importScripts('apriltag_wasm.js'); // use the exact filename you already used
+    postMessage({ type: 'debug', msg: 'importScripts succeeded' });
 } catch (err) {
-  postMessage({ type: 'error', error: 'importScripts threw: ' + String(err) });
+    postMessage({ type: 'error', error: 'importScripts threw: ' + String(err) });
 }
 
 postMessage({
-  type: 'debug',
-  globals: {
-    ApriltagModule: typeof ApriltagModule,
-    Module: typeof Module,
-    createApriltag: typeof createApriltag,
-    Comlink: typeof Comlink,
-    keys: Object.keys(self).filter(k => /apriltag|tag|Module|create/i.test(k)).slice(0,40)
-  }
+    type: 'debug',
+    globals: {
+        ApriltagModule: typeof ApriltagModule,
+        Module: typeof Module,
+        createApriltag: typeof createApriltag,
+        Comlink: typeof Comlink,
+        keys: Object.keys(self).filter(k => /apriltag|tag|Module|create/i.test(k)).slice(0,40)
+    }
 });
 
 let module = null;
 if (typeof ApriltagModule === 'function') {
-  // modularized factory
-  module = await ApriltagModule();
+    // modularized factory
+    module = await ApriltagModule();
 } else if (typeof Module !== 'undefined') {
-  module = Module;
-  if (module.onRuntimeInitialized) {
-    await new Promise(resolve => {
-      const prev = module.onRuntimeInitialized;
-      module.onRuntimeInitialized = () => { prev && prev(); resolve(); };
-    });
-  }
+    module = Module;
+    if (module.onRuntimeInitialized) {
+        await new Promise(resolve => {
+        const prev = module.onRuntimeInitialized;
+        module.onRuntimeInitialized = () => { prev && prev(); resolve(); };
+        });
+    }
 } else if (typeof createApriltag === 'function') {
-  // some builds use a different exported name
-  module = await createApriltag();
+    // some builds use a different exported name
+    module = await createApriltag();
 } else {
-  postMessage({ type: 'error', error: 'No apriltag module found (no factory or Module). Inspect loader exports.' });
-  return;
+    postMessage({ type: 'error', error: 'No apriltag module found (no factory or Module). Inspect loader exports.' });
+    return;
 }
 postMessage({ type: 'debug', msg: 'Module initialized', modType: typeof module });
 let detectorPtr = 0;
