@@ -45,7 +45,26 @@
 
     const WHITELIST = RAW_WHITELIST.map(s => s.trim().toLowerCase());
 
-    function isWhitelistedUrl(scannedText) {
+    const REDIRECT_DELAY = 0.5; // seconds before redirect (short visible cue)
+    const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
+
+    // ---- UI refs ----
+    const readerId = "reader";
+    const statusEl = document.getElementById('status');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toastMsg');
+    const toastUrl = document.getElementById('toastUrl');
+    const countdownEl = document.getElementById('countdown');
+    const cancelBtn = document.getElementById('cancelBtn');
+
+    let html5QrCode = null;
+    let lastHandled = null;
+    let pendingTimer = null;
+    let remaining = REDIRECT_DELAY;
+
+    function logStatus(s) { statusEl.textContent = s; }
+
+    function validateScannedText(text) {
       // ensure we have a scheme; if absent, assume https
       let candidate = scannedText.trim();
       if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)) {
@@ -75,43 +94,6 @@
         return false;
       } catch (e) {
         return false;
-      }
-    }
-
-    const REDIRECT_DELAY = 0.5; // seconds before redirect (short visible cue)
-    const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
-
-    // ---- UI refs ----
-    const readerId = "reader";
-    const statusEl = document.getElementById('status');
-    const toast = document.getElementById('toast');
-    const toastMsg = document.getElementById('toastMsg');
-    const toastUrl = document.getElementById('toastUrl');
-    const countdownEl = document.getElementById('countdown');
-    const cancelBtn = document.getElementById('cancelBtn');
-
-    let html5QrCode = null;
-    let lastHandled = null;
-    let pendingTimer = null;
-    let remaining = REDIRECT_DELAY;
-
-    function logStatus(s) { statusEl.textContent = s; }
-
-    function validateScannedText(text) {
-      try {
-        const u = new URL(text);
-        if (!['http:', 'https:'].includes(u.protocol)) return { ok: false, reason: 'Unsupported protocol' };
-        // exact url match
-        if (WHITELIST.includes(u.href)) return { ok: true, url: u.href };
-        // hostname rules
-        for (const rule of WHITELIST) {
-          if (rule.includes('://')) continue;
-          if (u.hostname === rule) return { ok: true, url: u.href };
-          if (u.hostname.endsWith('.' + rule)) return { ok: true, url: u.href };
-        }
-        return { ok: false, reason: 'Not in whitelist', url: u.href };
-      } catch (e) {
-        return { ok: false, reason: 'Not a URL' };
       }
     }
 
