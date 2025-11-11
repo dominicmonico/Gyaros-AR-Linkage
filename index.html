@@ -37,36 +37,10 @@
   <script>
     // ---- CONFIG: set allowed targets ----
     // Add allowed hostnames or exact URLs. Hostname entries allow any path under that host.
-    // normalize whitelist to lowercase once
     const WHITELIST = [
-      "kepea-syrou.kyk.sch.gr",
+      "https://kepea-syrou.kyk.sch.gr",
       "https://kepea-syrou.kyk.sch.gr/gyaros-entos-ylhs/"
-    ].map(s => s.toLowerCase());
-
-    function validateScannedText(text) {
-      try {
-        const u = new URL(text);
-        if (!['http:', 'https:'].includes(u.protocol)) return { ok: false, reason: 'Unsupported protocol' };
-
-        const hrefLower = u.href.toLowerCase();
-        const hostLower = u.hostname.toLowerCase();
-
-        // exact href match allowed
-        if (WHITELIST.includes(hrefLower)) return { ok: true, url: u.href };
-
-        // hostname match (allow subpaths)
-        for (const rule of WHITELIST) {
-          if (rule.includes('://')) continue; // skip exact-URL entries already checked
-          if (hostLower === rule) return { ok: true, url: u.href };
-          if (hostLower.endsWith('.' + rule)) return { ok: true, url: u.href };
-        }
-
-        return { ok: false, reason: 'Not in whitelist', url: u.href };
-      } catch (e) {
-        return { ok: false, reason: 'Not a URL' };
-      }
-    }
-
+    ];
     const REDIRECT_DELAY = 1.0; // seconds before redirect (short visible cue)
     const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
 
