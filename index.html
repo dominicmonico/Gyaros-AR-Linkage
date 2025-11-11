@@ -1,75 +1,173 @@
 <!DOCTYPE html>
-<script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.6.0/dist/aframe-master.min.js"></script>
-<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Auto QR Scanner (whitelist)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Arial; margin: 12px; display:flex; flex-direction:column; align-items:center; }
+    #reader { width:100%; max-width:640px; height:480px; background:#000; }
+    #toast {
+      position: fixed; left:50%; transform:translateX(-50%);
+      bottom:20px; background:rgba(0,0,0,0.85); color:#fff; padding:10px 14px; border-radius:8px;
+      display:none; align-items:center; gap:12px; min-width:260px; justify-content:space-between;
+    }
+    #toast small { opacity:0.9; display:block; font-size:13px; max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    button { padding:8px 10px; font-size:14px; }
+    #status { margin:8px 0; color:#333; font-size:14px; }
+  </style>
+</head>
+<body>
+  <h3>Scan QR (auto-start)</h3>
+  <div id="reader"></div>
+  <div id="status">Initializing camera…</div>
 
-<style>
-  .arjs-loader {
-    height: 100%;
-    width: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    background-color: rgba(0, 0, 0, 0.8);
-    z-index: 9999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .arjs-loader div {
-    text-align: center;
-    font-size: 1.25em;
-    color: white;
-  }
-</style>
-
-<body style="margin : 0px; overflow: hidden;">
-  <!-- minimal loader shown until image descriptors are loaded -->
-  <div class="arjs-loader">
-    <div>Loading, please wait...</div>
+  <div id="toast" role="status" aria-live="polite">
+    <div>
+      <div id="toastMsg"><strong>Opening</strong></div>
+      <small id="toastUrl"></small>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div id="countdown" style="font-weight:600">1.0s</div>
+      <button id="cancelBtn">Cancel</button>
+    </div>
   </div>
-  <a-scene
-    vr-mode-ui="enabled: false;"
-    renderer="logarithmicDepthBuffer: true; precision: medium;"
-    embedded
-    arjs="trackingMethod: best; sourceType: webcam;debugUIEnabled: false;"
-  >
-    <!-- we use cors proxy to avoid cross-origin problems ATTENTION! you need to set up your server -->
-    <a-nft
-      type="nft"
-      url="https://raw.githack.com/dominicmonico/Gyaros-AR-Linkage/main/Markers/Marker2"
-      id="marker2"
-      smooth="true"
-      smoothCount="10"
-      smoothTolerance=".01"
-      smoothThreshold="5"
-    >
-    </a-nft>
-    <a-nft
-      type="nft"
-      url="https://raw.githack.com/KrazyKoi/artest.github.io/refs/heads/main/gurttesting/Marker1"
-      id="mark1"
-      smooth="true"
-      smoothCount="10"
-      smoothTolerance=".01"
-      smoothThreshold="5"
-    >
-    </a-nft>
-    <a-nft
-      type="nft"
-      url="https://raw.githack.com/KrazyKoi/artest.github.io/refs/heads/main/gurttesting/gurttesting"
-      id="gurt"
-      smooth="true"
-      smoothCount="10"
-      smoothTolerance=".01"
-      smoothThreshold="5"
-    >
-    </a-nft>
-    <a-entity camera></a-entity>
-  </a-scene>
-  <script>
-    document.querySelector('#marker2').addEventListener('markerFound', () => {
-    window.location.href = 'https://alexs-mobs-unofficial.fandom.com/wiki/Ambergris';});
-  </script>
 
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+  <script>
+    // ---- CONFIG: set allowed targets ----
+    // Add allowed hostnames or exact URLs. Hostname entries allow any path under that host.
+    const WHITELIST = [
+      "KEPEA-Syrou.kyk.seh.gr"
+    ];
+    const REDIRECT_DELAY = 1.0; // seconds before redirect (short visible cue)
+    const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
+
+    // ---- UI refs ----
+    const readerId = "reader";
+    const statusEl = document.getElementById('status');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toastMsg');
+    const toastUrl = document.getElementById('toastUrl');
+    const countdownEl = document.getElementById('countdown');
+    const cancelBtn = document.getElementById('cancelBtn');
+
+    let html5QrCode = null;
+    let lastHandled = null;
+    let pendingTimer = null;
+    let remaining = REDIRECT_DELAY;
+
+    function logStatus(s) { statusEl.textContent = s; }
+
+    function validateScannedText(text) {
+      try {
+        const u = new URL(text);
+        if (!['http:', 'https:'].includes(u.protocol)) return { ok: false, reason: 'Unsupported protocol' };
+        // exact url match
+        if (WHITELIST.includes(u.href)) return { ok: true, url: u.href };
+        // hostname rules
+        for (const rule of WHITELIST) {
+          if (rule.includes('://')) continue;
+          if (u.hostname === rule) return { ok: true, url: u.href };
+          if (u.hostname.endsWith('.' + rule)) return { ok: true, url: u.href };
+        }
+        return { ok: false, reason: 'Not in whitelist', url: u.href };
+      } catch (e) {
+        return { ok: false, reason: 'Not a URL' };
+      }
+    }
+
+    function showToastFor(url) {
+      toastUrl.textContent = url;
+      toastMsg.innerHTML = '<strong>Opening</strong>';
+      countdownEl.textContent = remaining.toFixed(1) + 's';
+      toast.style.display = 'flex';
+    }
+    function hideToast() { toast.style.display = 'none'; }
+
+    function clearPending() {
+      if (pendingTimer) {
+        clearInterval(pendingTimer);
+        pendingTimer = null;
+      }
+    }
+
+    function startCountdownAndRedirect(url) {
+      clearPending();
+      remaining = REDIRECT_DELAY;
+      showToastFor(url);
+      pendingTimer = setInterval(() => {
+        remaining -= 0.1;
+        if (remaining <= 0) {
+          clearPending();
+          hideToast();
+          // stop camera then replace location
+          if (html5QrCode) {
+            html5QrCode.stop().catch(()=>{});
+          }
+          location.replace(url);
+        } else {
+          countdownEl.textContent = remaining.toFixed(1) + 's';
+        }
+      }, 100);
+    }
+
+    cancelBtn.addEventListener('click', () => {
+      clearPending();
+      hideToast();
+      logStatus('Redirect canceled.');
+    });
+
+    // Called on each successful scan
+    async function onScanSuccess(decodedText) {
+      if (!decodedText) return;
+      // debounce duplicate handling
+      const now = Date.now();
+      if (lastHandled && (now - lastHandled.time < REUSE_DEBOUNCE_MS) && lastHandled.text === decodedText) return;
+      lastHandled = { text: decodedText, time: now };
+
+      const v = validateScannedText(decodedText);
+      if (!v.ok) {
+        logStatus('Scan ignored: ' + (v.reason || 'not allowed'));
+        // briefly show rejected toast
+        toastMsg.innerHTML = '<strong>Rejected</strong>';
+        toastUrl.textContent = (v.url || decodedText);
+        showToastFor(toastUrl.textContent);
+        setTimeout(hideToast, 1200);
+        return;
+      }
+
+      logStatus('Allowed QR found. Redirecting…');
+      startCountdownAndRedirect(v.url);
+    }
+
+    // Try to start camera on load
+    window.addEventListener('load', async () => {
+      try {
+        html5QrCode = new Html5Qrcode(readerId, /* verbose= */ false);
+        const config = { fps: 10, qrbox: 300 };
+
+        // Attempt to start immediately
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          (decodedText, result) => {
+            onScanSuccess(decodedText);
+          },
+          (err) => {
+            // per-frame decode failure; ignored normally
+          }
+        );
+        logStatus('Camera started. Point at a QR code.');
+      } catch (err) {
+        logStatus('Could not start camera: ' + err);
+      }
+    });
+
+    // stop camera when leaving page
+    window.addEventListener('pagehide', () => {
+      if (html5QrCode) html5QrCode.stop().catch(()=>{});
+    });
+  </script>
 </body>
+</html>
