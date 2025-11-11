@@ -37,15 +37,10 @@
   <script>
     // ---- CONFIG: set allowed targets ----
     // Add allowed hostnames or exact URLs. Hostname entries allow any path under that host.
-    // Normalise whitelist once (lowercase)
-    const RAW_WHITELIST = [
-      "https://kepea-syrou.kyk.sch.gr" // allows the whole host (any path)
-      // "https://kepea-syrou.kyk.sch.gr/gyaros-entos-ylhs/" // add exact-URL entries if you want
+    const WHITELIST = [
+      "https://kepea-syrou.kyk.sch.gr"
     ];
-
-    const WHITELIST = RAW_WHITELIST.map(s => s.trim().toLowerCase());
-
-    const REDIRECT_DELAY = 0.5; // seconds before redirect (short visible cue)
+    const REDIRECT_DELAY = 1.0; // seconds before redirect (short visible cue)
     const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
 
     // ---- UI refs ----
@@ -65,35 +60,20 @@
     function logStatus(s) { statusEl.textContent = s; }
 
     function validateScannedText(text) {
-      // ensure we have a scheme; if absent, assume https
-      let candidate = scannedText.trim();
-      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)) {
-        candidate = 'https://' + candidate;
-      }
-
       try {
-        const u = new URL(candidate);
-        const hrefLower = u.href.toLowerCase();
-        const originLower = u.origin.toLowerCase(); // protocol + host + optional port
-        const hostLower = u.hostname.toLowerCase();
-
-        // 1) Exact href match (full URL)
-        if (WHITELIST.includes(hrefLower)) return true;
-
-        // 2) Origin match (e.g., "https://kepea-syrou.kyk.sch.gr" allows all paths)
-        if (WHITELIST.includes(originLower)) return true;
-
-        // 3) Hostname match entries (if you had plain hostnames in whitelist)
+        const u = new URL(text);
+        if (!['http:', 'https:'].includes(u.protocol)) return { ok: false, reason: 'Unsupported protocol' };
+        // exact url match
+        if (WHITELIST.includes(u.href)) return { ok: true, url: u.href };
+        // hostname rules
         for (const rule of WHITELIST) {
           if (rule.includes('://')) continue;
-          // exact hostname or subdomain match
-          if (hostLower === rule) return true;
-          if (hostLower.endsWith('.' + rule)) return true;
+          if (u.hostname === rule) return { ok: true, url: u.href };
+          if (u.hostname.endsWith('.' + rule)) return { ok: true, url: u.href };
         }
-
-        return false;
+        return { ok: false, reason: 'Not in whitelist', url: u.href };
       } catch (e) {
-        return false;
+        return { ok: false, reason: 'Not a URL' };
       }
     }
 
