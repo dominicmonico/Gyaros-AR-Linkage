@@ -114,7 +114,12 @@
       if (!stopping) {
         stopping = true;
         // do not await; call stop and ignore any error the library throws
-        html5QrCode.stop().catch(() => { /* ignore stop errors */ });
+        setTimeout(() => {
+          html5QrCode.stop().catch((err) => {
+            // swallow errors for now but log them for debugging
+            console.warn('html5QrCode.stop() error (ignored):', err);
+          });
+        }, 0);
       }
 
       logStatus('QR scanned — redirecting…');
