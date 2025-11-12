@@ -105,15 +105,25 @@
       if (lastHandled && (now - lastHandled.time < REUSE_DEBOUNCE_MS) && lastHandled.text === decodedText) return;
       lastHandled = { text: decodedText, time: now };
 
-      logStatus('Allowed QR found. Redirecting…');
-      startCountdownAndRedirect(v.url);
+      let target = decodedText.trim();
+      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(target)) {
+        target = 'https://' + target;
+      }
+
+      try {
+        // stop scanning and redirect
+        if (html5QrCode) await html5QrCode.stop();
+      } catch (e) { /* ignore stop errors */ }
+
+      logStatus('QR scanned — redirecting…');
+      startCountdownAndRedirect(target);
     }
 
     // Try to start camera on load
     window.addEventListener('load', async () => {
       try {
         html5QrCode = new Html5Qrcode(readerId, /* verbose= */ false);
-        const config = { fps: 15, qrbox: 200 , aspectRatio: 1.0};
+        const config = { fps: 20, qrbox: 200 , aspectRatio: 1.0};
 
         // Attempt to start immediately
         await html5QrCode.start(
