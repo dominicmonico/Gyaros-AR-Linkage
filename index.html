@@ -98,22 +98,24 @@
     });
 
     // Called on each successful scan
+    let stopping = false; // top-level, near lastHandled
     async function onScanSuccess(decodedText) {
       if (!decodedText) return;
-      // debounce duplicate handling
+
       const now = Date.now();
       if (lastHandled && (now - lastHandled.time < REUSE_DEBOUNCE_MS) && lastHandled.text === decodedText) return;
       lastHandled = { text: decodedText, time: now };
 
+      // normalize to a full https URL if needed
       let target = decodedText.trim();
-      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(target)) {
-        target = 'https://' + target;
-      }
+      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(target)) target = 'https://' + target;
 
-      try {
-        // stop scanning and redirect
-        if (html5QrCode) await html5QrCode.stop();
-      } catch (e) { /* ignore stop errors */ }
+      // prevent races / duplicate stop() calls
+      if (!stopping) {
+        stopping = true;
+        // do not await; call stop and ignore any error the library throws
+        html5QrCode.stop().catch(() => { /* ignore stop errors */ });
+      }
 
       logStatus('QR scanned — redirecting…');
       startCountdownAndRedirect(target);
