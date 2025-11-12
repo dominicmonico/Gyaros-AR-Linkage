@@ -37,9 +37,6 @@
   <script>
     // ---- CONFIG: set allowed targets ----
     // Add allowed hostnames or exact URLs. Hostname entries allow any path under that host.
-    const WHITELIST = [
-      "https://kepea-syrou.kyk.sch.gr"
-    ];
     const REDIRECT_DELAY = 1.0; // seconds before redirect (short visible cue)
     const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
 
@@ -58,24 +55,6 @@
     let remaining = REDIRECT_DELAY;
 
     function logStatus(s) { statusEl.textContent = s; }
-
-    function validateScannedText(text) {
-      try {
-        const u = new URL(text);
-        if (!['http:', 'https:'].includes(u.protocol)) return { ok: false, reason: 'Unsupported protocol' };
-        // exact url match
-        if (WHITELIST.includes(u.href)) return { ok: true, url: u.href };
-        // hostname rules
-        for (const rule of WHITELIST) {
-          if (rule.includes('://')) continue;
-          if (u.hostname === rule) return { ok: true, url: u.href };
-          if (u.hostname.endsWith('.' + rule)) return { ok: true, url: u.href };
-        }
-        return { ok: false, reason: 'Not in whitelist', url: u.href };
-      } catch (e) {
-        return { ok: false, reason: 'Not a URL' };
-      }
-    }
 
     function showToastFor(url) {
       toastUrl.textContent = url;
@@ -125,17 +104,6 @@
       const now = Date.now();
       if (lastHandled && (now - lastHandled.time < REUSE_DEBOUNCE_MS) && lastHandled.text === decodedText) return;
       lastHandled = { text: decodedText, time: now };
-
-      const v = validateScannedText(decodedText);
-      if (!v.ok) {
-        logStatus('Scan ignored: ' + (v.reason || 'not allowed'));
-        // briefly show rejected toast
-        toastMsg.innerHTML = '<strong>Rejected</strong>';
-        toastUrl.textContent = (v.url || decodedText);
-        showToastFor(toastUrl.textContent);
-        setTimeout(hideToast, 1200);
-        return;
-      }
 
       logStatus('Allowed QR found. Redirecting…');
       startCountdownAndRedirect(v.url);
