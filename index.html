@@ -98,7 +98,6 @@
     });
 
     // Called on each successful scan
-    let stopping = false; // top-level, near lastHandled
     async function onScanSuccess(decodedText) {
       if (!decodedText) return;
 
@@ -109,18 +108,6 @@
       // normalize to a full https URL if needed
       let target = decodedText.trim();
       if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(target)) target = 'https://' + target;
-
-      // prevent races / duplicate stop() calls
-      if (!stopping) {
-        stopping = true;
-        // do not await; call stop and ignore any error the library throws
-        setTimeout(() => {
-          html5QrCode.stop().catch((err) => {
-            // swallow errors for now but log them for debugging
-            console.warn('html5QrCode.stop() error (ignored):', err);
-          });
-        }, 0);
-      }
 
       logStatus('QR scanned — redirecting…');
       startCountdownAndRedirect(target);
