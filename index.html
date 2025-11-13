@@ -121,7 +121,7 @@
 
         // Attempt to start immediately
         await html5QrCode.start(
-          { facingMode: "environment" },
+          { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
           config,
           (decodedText, result) => {
             onScanSuccess(decodedText);
