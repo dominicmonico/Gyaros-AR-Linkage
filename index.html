@@ -117,7 +117,7 @@
     window.addEventListener('load', async () => {
       try {
         html5QrCode = new Html5Qrcode(readerId, /* verbose= */ false);
-        const config = { fps: 45, qrbox: 100, aspectRatio: 16/9, width: { ideal: 1920 }, height: { ideal: 1080 } };
+        const config = { fps: 60, qrbox: 100, aspectRatio: 16/9, width: { ideal: 1920 }, height: { ideal: 1080 } };
 
         // Attempt to start immediately
         await html5QrCode.start(
