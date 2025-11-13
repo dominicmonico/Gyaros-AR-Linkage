@@ -117,11 +117,11 @@
     window.addEventListener('load', async () => {
       try {
         html5QrCode = new Html5Qrcode(readerId, /* verbose= */ false);
-        const config = { fps: 30, qrbox: 100, aspectRatio: 1.0 };
+        const config = { fps: 45, qrbox: 100, aspectRatio: 1.0 };
 
         // Attempt to start immediately
         await html5QrCode.start(
-          { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+          { facingMode: "environment" },
           config,
           (decodedText, result) => {
             onScanSuccess(decodedText);
