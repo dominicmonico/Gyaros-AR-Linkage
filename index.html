@@ -80,11 +80,11 @@
         if (remaining <= 0) {
           clearPending();
           hideToast();
-          // stop camera then replace location
+          // stop camera then go to location
           if (html5QrCode) {
             html5QrCode.stop().catch(()=>{});
           }
-          location.replace(url);
+          location.assign(url);
         } else {
           countdownEl.textContent = remaining.toFixed(1) + 's';
         }
