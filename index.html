@@ -107,31 +107,47 @@
     }
 
     // Try to start camera on load
-    window.addEventListener('show', async () => {
+    async function createAndStartScanner() {
       try {
+        if(html5QrCode){
+          try{await html5QrCode.stop();}
+          catch{}
+          try{html5QrCode.clear();}
+          catch{}
+          html5QrCode = null;
+        }
         html5QrCode = new Html5Qrcode(readerId, /* verbose= */ false);
-        const config = CONFIG_DEFAULT;
-
-        // Attempt to start immediately
         await html5QrCode.start(
           { facingMode: "environment" },
           config,
-          (decodedText, result) => {
-            onScanSuccess(decodedText);
-          },
-          (err) => {
-            // per-frame decode failure; ignored normally
-          }
+          (decodedText) => onScanSuccess(decodedText),
+          (err) => {}
         );
         logStatus('Camera started. Point at a QR code.');
       } catch (err) {
         logStatus('Could not start camera: ' + err);
       }
+    }
+
+    async function stopAndTidyScanner() {
+      if (!html5QrCode) return;
+      try{await html5QrCode.stop(); } 
+      catch{}
+      try{html5QrCode.clear();} 
+      catch{}
+      html5QrCode = null;
+    }
+
+    window.addEventListener('pageshow', (evt) => {
+      // evt.persisted is true when restored from bfcache, but we want to start in both cases
+      createAndStartScanner();
     });
 
-    // stop camera when leaving page
-    window.addEventListener('pagehide', () => {
-      if (html5QrCode) html5QrCode.stop().catch(()=>{});
+    window.addEventListener('pagehide', (evt) => {
+      // evt.persisted is true when restored from bfcache, but we want to start in both cases
+      stopAndTidyScanner();
+      clearPending();
+      hideToast();
     });
   </script>
 </body>
