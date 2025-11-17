@@ -15,6 +15,11 @@
     #toast small { opacity:0.9; display:block; font-size:13px; max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     button { padding:8px 10px; font-size:14px; }
     #status { margin:8px 0; color:#333; font-size:14px; }
+    #reader.detected {
+      box-shadow: 0 0 0 6px rgba(0,200,80,0.95);
+      border-radius: 6px;
+      transition: box-shadow 160ms ease;
+    }
   </style>
 </head>
 <body>
@@ -36,11 +41,12 @@
   <script>
     // ---- CONFIG: set allowed targets ----
     // Add allowed hostnames or exact URLs. Hostname entries allow any path under that host.
-    const REDIRECT_DELAY = 0; // seconds before redirect (short visible cue)
+    const REDIRECT_DELAY = 1.0; // seconds before redirect (short visible cue)
     const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
 
     // ---- UI refs ----
     const readerId = "reader";
+    const readerEl = document.getElementById('readerId');
     const statusEl = document.getElementById('status');
     const toast = document.getElementById('toast');
     const toastMsg = document.getElementById('toastMsg');
@@ -61,11 +67,20 @@
       toast.style.display = 'flex';
     }
     function hideToast() { toast.style.display = 'none'; }
+    function setDetectedState(on = true) {
+      if (!readerEl) return;
+      if (on) {
+        readerEl.classList.add('detected');
+      } else {
+        readerEl.classList.remove('detected');
+      }
+    }
 
     function clearPending() {
       if (pendingTimer) {
         clearInterval(pendingTimer);
         pendingTimer = null;
+        setDetectedState(false);
       }
     }
 
@@ -95,6 +110,8 @@
       const now = Date.now();
       if (lastHandled && (now - lastHandled.time < REUSE_DEBOUNCE_MS) && lastHandled.text === decodedText) return;
       lastHandled = { text: decodedText, time: now };
+
+      setDetectedState(true);
 
       // normalize to a full https URL if needed
       let target = decodedText.trim();
