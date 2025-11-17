@@ -16,9 +16,10 @@
     button { padding:8px 10px; font-size:14px; }
     #status { margin:8px 0; color:#333; font-size:14px; }
     #reader.detected {
-      box-shadow: 0 0 0 6px rgba(0,200,80,0.95);
+      box-shadow: 0 0 0 8px rgba(0,200,80,1) !important;
+      background-color: rgba(0,200,80,0.06) !important;
       border-radius: 6px;
-      transition: box-shadow 160ms ease;
+      transition: box-shadow 160ms ease, background-color 160ms ease;
     }
   </style>
 </head>
@@ -46,7 +47,7 @@
 
     // ---- UI refs ----
     const readerId = "reader";
-    const readerEl = document.getElementById('readerId');
+    const readerEl = document.getElementById(readerId);
     const statusEl = document.getElementById('status');
     const toast = document.getElementById('toast');
     const toastMsg = document.getElementById('toastMsg');
