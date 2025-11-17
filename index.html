@@ -29,7 +29,6 @@
     </div>
     <div style="display:flex; gap:8px; align-items:center;">
       <div id="countdown" style="font-weight:600">1.0s</div>
-      <button id="cancelBtn">Cancel</button>
     </div>
   </div>
 
@@ -47,7 +46,6 @@
     const toastMsg = document.getElementById('toastMsg');
     const toastUrl = document.getElementById('toastUrl');
     const countdownEl = document.getElementById('countdown');
-    const cancelBtn = document.getElementById('cancelBtn');
 
     let html5QrCode = null;
     let lastHandled = null;
@@ -72,7 +70,6 @@
     }
 
     function startCountdownAndRedirect(url) {
-      clearPending();
       remaining = REDIRECT_DELAY;
       showToastFor(url);
       pendingTimer = setInterval(() => {
@@ -90,12 +87,6 @@
         }
       }, 100);
     }
-
-    cancelBtn.addEventListener('click', () => {
-      clearPending();
-      hideToast();
-      logStatus('Redirect canceled.');
-    });
 
     // Called on each successful scan
     async function onScanSuccess(decodedText) {
