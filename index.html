@@ -108,6 +108,7 @@
 
     // Try to start camera on load
     async function createAndStartScanner() {
+      const config = CONFIG_DEFAULT;
       try {
         if(html5QrCode){
           try{await html5QrCode.stop();}
