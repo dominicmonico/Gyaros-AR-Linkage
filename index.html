@@ -41,7 +41,6 @@
 
     // ---- UI refs ----
     const readerId = "reader";
-    const readerEl = document.getElementById(readerId);
     const statusEl = document.getElementById('status');
     const toast = document.getElementById('toast');
     const toastMsg = document.getElementById('toastMsg');
@@ -169,6 +168,7 @@
 
     // Try to start camera on load
     async function createAndStartScanner() {
+      const readerEl = document.getElementById(readerId);
       const config = computeScannerConfig(readerEl, { boxScale: 0.6, aspectRatio: 1 });
       try {
         if(html5QrCode){
