@@ -169,7 +169,7 @@
     // Try to start camera on load
     async function createAndStartScanner() {
       const readerEl = document.getElementById(readerId);
-      const config = computeScannerConfig(readerEl, { boxScale: 0.6, aspectRatio: 1 });
+      const config = computeScannerConfig(readerEl, { boxScale: 0.3, aspectRatio: 1 });
       try {
         if(html5QrCode){
           try{await html5QrCode.stop();}
