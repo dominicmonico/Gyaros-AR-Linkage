@@ -41,6 +41,7 @@
 
     // ---- UI refs ----
     const readerId = "reader";
+    const readerEl = document.getElementById(readerId);
     const statusEl = document.getElementById('status');
     const toast = document.getElementById('toast');
     const toastMsg = document.getElementById('toastMsg');
@@ -106,58 +107,69 @@
 
     // Creates the configs based on the size of the reader
     function computeScannerConfig(readerEl, opts = {}) {
-      // Options and safe bounds
-      const boxScale = typeof opts.boxScale === 'number' ? opts.boxScale : 0.6; // fraction of smaller side
-      const aspectRatio = typeof opts.aspectRatio === 'number' ? opts.aspectRatio : 1.0; // match CSS
-      const minCameraWidth = opts.minCameraWidth || 640;
-      const maxCameraWidth = opts.maxCameraWidth || 1920;
-      const minCameraHeight = opts.minCameraHeight || 480;
-      const maxCameraHeight = opts.maxCameraHeight || 1080;
+    const boxScale = typeof opts.boxScale === 'number' ? opts.boxScale : 0.6;
+    const minBox = typeof opts.minBox === 'number' ? opts.minBox : 80;
+    const maxBox = typeof opts.maxBox === 'number' ? opts.maxBox : 640;
+    const aspectRatio = typeof opts.aspectRatio === 'number' ? opts.aspectRatio : 1.0;
 
-      // Measure viewport (reader element)
-      const viewportWidth = Math.max(100, Math.floor(readerEl.clientWidth));
-      const viewportHeight = Math.max(100, Math.floor(readerEl.clientHeight));
-      const dpr = window.devicePixelRatio || 1;
+    const minCameraWidth = opts.minCameraWidth || 640;
+    const maxCameraWidth = opts.maxCameraWidth || 1920;
+    const minCameraHeight = opts.minCameraHeight || 480;
+    const maxCameraHeight = opts.maxCameraHeight || 1080;
 
-      // Compute qrbox as a square that fits inside the reader
-      const minEdge = Math.min(viewportWidth, viewportHeight);
-      const boxEdge = Math.max(80, Math.floor(minEdge * boxScale)); // never smaller than 80px
-      const qrbox = boxEdge;
+    // Fallback if readerEl is not provided
+    const rect = readerEl && readerEl.getBoundingClientRect ? readerEl.getBoundingClientRect() : {
+      width: Math.max(320, Math.floor(window.innerWidth)),
+      height: Math.max(240, Math.floor(window.innerHeight))
+    };
 
-      // Compute ideal camera resolution scaled by devicePixelRatio, clamped to bounds
-      let idealWidth = Math.round(viewportWidth * dpr);
-      let idealHeight = Math.round(viewportHeight * dpr);
+    const viewportWidth = Math.max(100, Math.floor(rect.width));
+    const viewportHeight = Math.max(100, Math.floor(rect.height));
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
 
-      // Respect aspect ratio preference if provided
-      if (aspectRatio && aspectRatio > 0) {
-        // adjust idealHeight to match aspectRatio
-        idealHeight = Math.round(idealWidth / aspectRatio);
-      }
+    // Determine qrbox: scale of the smaller side, clamped to min/max
+    const minEdge = Math.min(viewportWidth, viewportHeight);
+    let boxEdge = Math.round(minEdge * boxScale);
+    boxEdge = Math.max(minBox, Math.min(maxBox, boxEdge));
 
-      // Clamp to safe bounds
-      idealWidth = Math.min(maxCameraWidth, Math.max(minCameraWidth, idealWidth));
-      idealHeight = Math.min(maxCameraHeight, Math.max(minCameraHeight, idealHeight));
+    // If you want a square qrbox, pass a number. If you want rectangular, pass {width,height}
+    const qrbox = boxEdge;
 
-      // Build config object for html5-qrcode
-      const config = {
-        fps: 30,
-        qrbox: qrbox,            // object with width/height
-        aspectRatio: aspectRatio,
-        width: { ideal: idealWidth },
-        height: { ideal: idealHeight }
-      };
+    // Compute ideal camera resolution (use viewport * dpr to request sharper video on high-dpi)
+    let idealWidth = Math.round(viewportWidth * dpr);
+    let idealHeight = Math.round(viewportHeight * dpr);
 
-      // Optional debug info
-      config._debug = {
-        viewportWidth, viewportHeight, dpr, boxEdge, idealWidth, idealHeight
-      };
-
-      return config;
+    // Respect aspect ratio preference (width / height = aspectRatio)
+    if (aspectRatio > 0) {
+      // prefer adjusting height to match aspect ratio
+      idealHeight = Math.round(idealWidth / aspectRatio);
     }
+
+    // Clamp to safe bounds
+    idealWidth = Math.min(maxCameraWidth, Math.max(minCameraWidth, idealWidth));
+    idealHeight = Math.min(maxCameraHeight, Math.max(minCameraHeight, idealHeight));
+
+    // Build config for html5-qrcode
+    const config = {
+      fps: 30,
+      qrbox: qrbox,
+      aspectRatio: aspectRatio,
+      // html5-qrcode accepts videoConstraints for getUserMedia
+      videoConstraints: {
+        width: { ideal: idealWidth },
+        height: { ideal: idealHeight },
+        facingMode: "environment"
+      },
+      // debug info for development
+      _debug: { viewportWidth, viewportHeight, dpr, boxEdge, idealWidth, idealHeight }
+    };
+
+    return config;
+  }
 
     // Try to start camera on load
     async function createAndStartScanner() {
-      const config = computeScannerConfig();
+      const config = computeScannerConfig(readerEl, { boxScale: 0.6, aspectRatio: 1 });
       try {
         if(html5QrCode){
           try{await html5QrCode.stop();}
