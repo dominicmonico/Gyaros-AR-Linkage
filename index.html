@@ -143,12 +143,8 @@
         fps: 30,
         qrbox: qrbox,            // object with width/height
         aspectRatio: aspectRatio,
-        // Put camera constraints here; html5-qrcode will pass them to getUserMedia
-        videoConstraints: {
-          width: { ideal: idealWidth },
-          height: { ideal: idealHeight },
-          facingMode: "environment"
-        }
+        width: { ideal: idealWidth },
+        height: { ideal: idealHeight }
       };
 
       // Optional debug info
@@ -161,7 +157,7 @@
 
     // Try to start camera on load
     async function createAndStartScanner() {
-      const config = computeScannerConfig;
+      const config = computeScannerConfig();
       try {
         if(html5QrCode){
           try{await html5QrCode.stop();}
