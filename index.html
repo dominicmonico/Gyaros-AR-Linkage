@@ -39,10 +39,11 @@
     const REDIRECT_DELAY = 0; // seconds before redirect (short visible cue)
     const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
     const QR_BOXSIZE = 0.7;
-    const CONFIG_DEFAULT = { fps: { ideal: 30 }, qrbox: function(viewportWidth, viewportHeight) {
-      const minEdge = Math.min(viewportWidth, viewportHeight);
-      return Math.floor(minEdge * QR_BOXSIZE);
-    }, aspectRatio: 1.0};
+    const CONFIG_DEFAULT = {
+      fps: 30,
+      qrbox: (w, h) => Math.min(w, h) * 0.7,
+      aspectRatio: 1.0
+    };
 
     // ---- UI refs ----
     const readerId = "reader";
