@@ -38,11 +38,6 @@
     // Add allowed hostnames or exact URLs. Hostname entries allow any path under that host.
     const REDIRECT_DELAY = 0; // seconds before redirect (short visible cue)
     const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
-    const CONFIG_DEFAULT = { fps: { ideal: 30 }, qrbox: function(viewportWidth, viewportHeight) {
-      const minEdge = Math.min(viewportWidth, viewportHeight);
-      const edge = Math.floor(minEdge * 0.7); // 70% of the smaller side
-      return { width: edge, height: edge };   // square box
-    }, aspectRatio: 1.0};
 
     // ---- UI refs ----
     const readerId = "reader";
@@ -56,6 +51,12 @@
     let lastHandled = null;
     let pendingTimer = null;
     let remaining = REDIRECT_DELAY;
+
+    function qrboxsize(viewportWidth, viewportHeight){
+      const minEdge = Math.min(viewportWidth, viewportHeight);
+      const edge = Math.floor(minEdge * 0.5); // 70% of the smaller side
+      return edge;
+    }
 
     function logStatus(s) { statusEl.textContent = s; }
 
@@ -111,7 +112,8 @@
 
     // Try to start camera on load
     async function createAndStartScanner() {
-      const config = CONFIG_DEFAULT;
+      const CONFIGS = { fps: { ideal: 30 }, qrbox: qrboxsize, aspectRatio: 16/9, width: { ideal: 1920, max: 2560 }, height: { ideal: 1080, max: 1440 } };
+      const config = CONFIGS;
       try {
         if(html5QrCode){
           try{await html5QrCode.stop();}
