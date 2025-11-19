@@ -6,7 +6,7 @@
   <title>GyARos Scanner</title>
   <style>
     body { font-family: system-ui, -apple-system, Arial; margin: 12px; display:flex; flex-direction:column; align-items:center; }
-    #reader { width:100%; max-width:640px; height:480px; background:#000; }
+    #reader { width:100%; width:100%; max-width:640px; aspect-ratio:1/1; background:#000; }
     #toast {
       position: fixed; left:50%; transform:translateX(-50%);
       bottom:20px; background:rgba(0,0,0,0.85); color:#fff; padding:10px 14px; border-radius:8px;
@@ -38,8 +38,6 @@
     // Add allowed hostnames or exact URLs. Hostname entries allow any path under that host.
     const REDIRECT_DELAY = 0; // seconds before redirect (short visible cue)
     const REUSE_DEBOUNCE_MS = 1200; // avoid duplicate handling
-    const QR_BOXSIZE = 100;
-    const CONFIG_DEFAULT = { fps: { ideal: 30 }, qrbox: QR_BOXSIZE, aspectRatio: 16/9, width: { ideal: 1920, max: 2560 }, height: { ideal: 1080, max: 1440 } };
 
     // ---- UI refs ----
     const readerId = "reader";
@@ -106,9 +104,64 @@
       startCountdownAndRedirect(target);
     }
 
+    // Creates the configs based on the size of the reader
+    function computeScannerConfig(readerEl, opts = {}) {
+      // Options and safe bounds
+      const boxScale = typeof opts.boxScale === 'number' ? opts.boxScale : 0.6; // fraction of smaller side
+      const aspectRatio = typeof opts.aspectRatio === 'number' ? opts.aspectRatio : 1.0; // match CSS
+      const minCameraWidth = opts.minCameraWidth || 640;
+      const maxCameraWidth = opts.maxCameraWidth || 1920;
+      const minCameraHeight = opts.minCameraHeight || 480;
+      const maxCameraHeight = opts.maxCameraHeight || 1080;
+
+      // Measure viewport (reader element)
+      const viewportWidth = Math.max(100, Math.floor(readerEl.clientWidth));
+      const viewportHeight = Math.max(100, Math.floor(readerEl.clientHeight));
+      const dpr = window.devicePixelRatio || 1;
+
+      // Compute qrbox as a square that fits inside the reader
+      const minEdge = Math.min(viewportWidth, viewportHeight);
+      const boxEdge = Math.max(80, Math.floor(minEdge * boxScale)); // never smaller than 80px
+      const qrbox = boxEdge;
+
+      // Compute ideal camera resolution scaled by devicePixelRatio, clamped to bounds
+      let idealWidth = Math.round(viewportWidth * dpr);
+      let idealHeight = Math.round(viewportHeight * dpr);
+
+      // Respect aspect ratio preference if provided
+      if (aspectRatio && aspectRatio > 0) {
+        // adjust idealHeight to match aspectRatio
+        idealHeight = Math.round(idealWidth / aspectRatio);
+      }
+
+      // Clamp to safe bounds
+      idealWidth = Math.min(maxCameraWidth, Math.max(minCameraWidth, idealWidth));
+      idealHeight = Math.min(maxCameraHeight, Math.max(minCameraHeight, idealHeight));
+
+      // Build config object for html5-qrcode
+      const config = {
+        fps: 30,
+        qrbox: qrbox,            // object with width/height
+        aspectRatio: aspectRatio,
+        // Put camera constraints here; html5-qrcode will pass them to getUserMedia
+        videoConstraints: {
+          width: { ideal: idealWidth },
+          height: { ideal: idealHeight },
+          facingMode: "environment"
+        }
+      };
+
+      // Optional debug info
+      config._debug = {
+        viewportWidth, viewportHeight, dpr, boxEdge, idealWidth, idealHeight
+      };
+
+      return config;
+    }
+
     // Try to start camera on load
     async function createAndStartScanner() {
-      const config = CONFIG_DEFAULT;
+      const config = computeScannerConfig;
       try {
         if(html5QrCode){
           try{await html5QrCode.stop();}
